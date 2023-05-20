@@ -1,123 +1,11 @@
-fn generate_king_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> {
-    let (own_pieces, opponent_pieces, king) = match color {
-        Color::White => (
-            board.white.pawns
-                | board.white.knights
-                | board.white.bishops
-                | board.white.rooks
-                | board.white.queens
-                | board.white.king,
-            board.black.pawns
-                | board.black.knights
-                | board.black.bishops
-                | board.black.rooks
-                | board.black.queens
-                | board.black.king,
-            board.white.king,
-        ),
-        Color::Black => (
-            board.black.pawns
-                | board.black.knights
-                | board.black.bishops
-                | board.black.rooks
-                | board.black.queens
-                | board.black.king,
-            board.white.pawns
-                | board.white.knights
-                | board.white.bishops
-                | board.white.rooks
-                | board.white.queens
-                | board.white.king,
-            board.black.king,
-        ),
-    };
-    let empty_squares = !(own_pieces | opponent_pieces);
+mod pawn_move_gen;
 
-    let mut moves = vec![];
+use crate::chessboard::Chessboard;
+use crate::color::Color;
 
-    for from_square in 0..64 {
-        let from_bit = 1u64 << from_square;
-        if king & from_bit != 0 {
-            let possible_moves = king_moves(from_square) & !(own_pieces);
-            for to_square in 0..64 {
-                let to_bit = 1u64 << to_square;
-                if possible_moves & to_bit != 0 {
-                    moves.push((from_square, to_square));
-                }
-            }
-        }
-    }
+mod pawn_move_gen {
 
-    moves
-}
-
-fn generate_bishop_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> {
-    let (own_pieces, opponent_pieces, bishops) = match color {
-        Color::White => (
-            board.white.pawns
-                | board.white.knights
-                | board.white.bishops
-                | board.white.rooks
-                | board.white.queens
-                | board.white.king,
-            board.black.pawns
-                | board.black.knights
-                | board.black.bishops
-                | board.black.rooks
-                | board.black.queens
-                | board.black.king,
-            board.white.bishops,
-        ),
-        Color::Black => (
-            board.black.pawns
-                | board.black.knights
-                | board.black.bishops
-                | board.black.rooks
-                | board.black.queens
-                | board.black.king,
-            board.white.pawns
-                | board.white.knights
-                | board.white.bishops
-                | board.white.rooks
-                | board.white.queens
-                | board.white.king,
-            board.black.bishops,
-        ),
-    };
-    let empty_squares = !(own_pieces | opponent_pieces);
-
-    let mut moves = vec![];
-
-    for from_square in 0..64 {
-        let from_bit = 1u64 << from_square;
-        if bishops & from_bit != 0 {
-            for direction in &[7, 9, -7, -9] {
-                let mut to_square = from_square as isize + direction;
-                while to_square >= 0 && to_square < 64 {
-                    let to_bit = 1u64 << to_square;
-
-                    // Stop sliding when hitting own piece
-                    if to_bit & own_pieces != 0 {
-                        break;
-                    }
-
-                    moves.push((from_square, to_square as usize));
-
-                    // Stop sliding after capturing opponent piece
-                    if to_bit & opponent_pieces != 0 {
-                        break;
-                    }
-
-                    to_square += direction;
-                }
-            }
-        }
-    }
-
-    moves
-}
-
-fn generate_pawn_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> {
+    pub fn generate_pawn_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> {
     let (own_pieces, opponent_pieces, pawns) = match color {
         Color::White => (
             board.white.pawns
@@ -258,26 +146,6 @@ fn generate_pawn_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> 
             }
         }
     }
-
     moves
 }
-
-fn generate_moves(board: &Chessboard, color: Color) -> Vec<(usize, usize)> {
-    let mut moves = vec![];
-
-    let pawn_moves = generate_pawn_moves(board, color);
-    let knight_moves = generate_knight_moves(board, color);
-    let bishop_moves = generate_bishop_moves(board, color);
-    let rook_moves = generate_rook_moves(board, color);
-    let queen_moves = generate_queen_moves(board, color);
-    let king_moves = generate_king_moves(board, color);
-
-    moves.extend(pawn_moves);
-    moves.extend(knight_moves);
-    moves.extend(bishop_moves);
-    moves.extend(rook_moves);
-    moves.extend(queen_moves);
-    moves.extend(king_moves);
-
-    moves
 }

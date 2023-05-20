@@ -1,5 +1,9 @@
+mod zobrist;
 use crate::common::{Color, PieceType};
 use rand::Rng;
+
+mod zobrist {
+
 
 const NUM_SQUARES: usize = 64;
 
@@ -51,4 +55,5 @@ impl Zobrist {
 
         hash
     }
+}
 }

@@ -18,4 +18,9 @@ pub struct ChessPiece {
     color: Color,
 }
 
+pub struct BitboardMove {
+    from: u64,
+    to: u64,
+}
+
 const NUM_SQUARES: usize = 64;
