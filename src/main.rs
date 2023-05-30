@@ -21,6 +21,14 @@ fn index() -> Redirect {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/", routes![index])
+        .mount("/", routes![index,create])
         .mount("/public", FileServer::from("public"))
 }
+
+
+// Receive requests built from JS
+#[post("/")]
+fn create() -> () {
+    
+}
+
