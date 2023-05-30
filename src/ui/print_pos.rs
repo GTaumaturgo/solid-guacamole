@@ -4,8 +4,6 @@ use crate::chess::{ChessPiece, PieceType, PlayerColor};
 use strum_macros::EnumIter; // 0.17.1
 use strum::IntoEnumIterator;
 
-
-
 fn piece_as_unicode(piece: ChessPiece) -> &'static str {
     match piece.color {
         PlayerColor::Black => match piece.typpe {

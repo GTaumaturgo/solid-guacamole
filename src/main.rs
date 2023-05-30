@@ -2,14 +2,25 @@ pub mod chess;
 pub mod evaluation;
 pub mod move_gen;
 pub mod search;
-pub mod ui;
+pub mod server;
 // Strum contains all the trait definitions
 extern crate strum;
 #[macro_use]
 extern crate strum_macros;
+#[macro_use]
+extern crate rocket;
 
+use rocket::fs::FileServer;
+use rocket::response::Redirect;
 
-fn main() {
-    // Invoke the main function of the io module
-    ui::term_main();
+#[get("/")]
+fn index() -> Redirect {
+    Redirect::to("/public/chess.html")
+}
+
+#[launch]
+fn rocket() -> _ {
+    rocket::build()
+        .mount("/", routes![index])
+        .mount("/public", FileServer::from("public"))
 }
