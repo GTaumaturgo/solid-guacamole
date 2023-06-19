@@ -1,10 +1,36 @@
-
 pub const NUM_SQUARES: usize = 64;
 pub const NUM_ROWS: usize = 8;
 pub const NUM_COLS: usize = 8;
 
 pub type BitB64 = u64;
 
+pub const empty_board : BitB64 = 0u64;
+pub const full_board : BitB64 = u64::MAX;
+// Usage: bitb!(3) -> 1u64 << (3 * 8 + 4)
+#[macro_export]
+macro_rules! bitb {
+    ($x:expr) => {
+        1u64 << ($x as u8)
+    };
+}
+#[macro_export]
+macro_rules! bitb32 {
+    ($x:expr) => {
+        1u32 << ($x as u8)
+    };
+}
+#[macro_export]
+macro_rules! bitb16 {
+    ($x:expr) => {
+        1u16 << ($x as u8)
+    };
+}
+#[macro_export]
+macro_rules! bitb8 {
+    ($x:expr) => {
+        1u8 << ($x as u8)
+    };
+}
 
 // Bitboard with information about the pieces of one PlayerColor.
 pub struct Bitboard {
@@ -34,14 +60,9 @@ impl Bitboard {
 }
 
 pub struct BitboardMove {
-    pub from: BitB64,
-    pub to: BitB64,
-}
-// Macro. Usage: bitb!(3) -> 1u64 << (3 * 8 + 4)
-macro_rules! bitb {
-    ($x:expr) => {
-        1u64 << $x
-    }
+    pub from: u8,
+    pub to: u8,
+
 }
 
 
