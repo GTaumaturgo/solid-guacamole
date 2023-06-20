@@ -2,14 +2,14 @@
 class Board {
     constructor() {
         this.board = [
-            ["black_rook", "black_knight", "black_bishop", "black_queen", "black_king", "black_bishop", "black_knight", "black_rook"],
-            ["black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn"],
-            ["", "", "", "", "", "", "", ""],
-            ["", "", "", "", "", "", "", ""],
-            ["", "", "", "", "", "", "", ""],
-            ["", "", "", "", "", "", "", ""],
+            ["white_rook", "white_knight", "white_bishop", "white_queen", "white_king", "white_bishop", "white_knight", "white_rook"],
             ["white_pawn", "white_pawn", "white_pawn", "white_pawn", "white_pawn", "white_pawn", "white_pawn", "white_pawn"],
-            ["white_rook", "white_knight", "white_bishop", "white_queen", "white_king", "white_bishop", "white_knight", "white_rook"]
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", ""],
+            ["black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn", "black_pawn"],
+            ["black_rook", "black_knight", "black_bishop", "black_queen", "black_king", "black_bishop", "black_knight", "black_rook"],
         ];
     }
 
@@ -34,25 +34,36 @@ class Controller {
         let move_map = parsePossibleMoves(IssuePossibleMovesReq(this.boards[0]));
         this.boards[0].setMoveMap(move_map);
         this.selectedSquare = null;
+        this.flipped = true;
     }
 
-    async SelectSquare(square_as_str) {
+    flip_board() {
+        this.flipped = !this.flipped;
+    }
+    async SelectSquare(row, column) {
         // If select the same square we unselect instead.
+        let square_as_str = getSquareName(row, column);
         console.log(square_as_str);
-        if (this.selectedSquare == square_as_str) {
-            console.log('unselecting instead!');
+        if (this.selectedSquare != null) {
+            let should_return = this.selectedSquare == square_as_str;
             await this.UnselectSquare();
-            return;
+            if (should_return) {
+                return;
+            }
         }
+        if (this.getPosition().board[row][column] == "") return;
         console.log('setting Square: ' + square_as_str);
         this.selectedSquare = square_as_str;
         let movesMap = await this.getPosition().movesMap;
         console.log(movesMap);
         console.log(square_as_str);
         console.log(movesMap.get(square_as_str));
-        movesMap.get(square_as_str).forEach((sq) => {
-            Singleton().drawCircle(sq);
-        });
+        let moves = movesMap.get(square_as_str);
+        if(typeof moves !== "undefined") {
+            moves.forEach((sq) => {
+                Singleton().drawCircle(sq);
+            });
+        }
     }
 
     async UnselectSquare() {
@@ -61,18 +72,22 @@ class Controller {
             return;
         }
         console.log('unselecting square');
-        await(await (await this.getPosition().movesMap).get(this.selectedSquare).forEach((sq) => {
-            let sqSvg = document.getElementById(sq);
-            console.log('here');
-            console.log(sqSvg.lastChild);
-            sqSvg.childNodes.forEach((node) => {
-                console.log(node);
-                if (node.id == 'red_circle') {
-                    sqSvg.removeChild(node);
-                }
-            })
-            console.log(sqSvg.lastChild);
-        }));
+        let moves = await (await this.getPosition().movesMap).get(this.selectedSquare);
+        if (typeof moves !== "undefined") {
+
+            await (moves.forEach((sq) => {
+                let sqSvg = document.getElementById(sq);
+                console.log('here');
+                console.log(sqSvg.lastChild);
+                sqSvg.childNodes.forEach((node) => {
+                    console.log(node);
+                    if (node.id == 'red_circle') {
+                        sqSvg.removeChild(node);
+                    }
+                })
+                console.log(sqSvg.lastChild);
+            }));
+        }
         this.selectedSquare = null;
     }
 
@@ -100,58 +115,70 @@ class Controller {
         let clonedCircle = document.getElementById('red_circle').cloneNode(false);
         sqSvg.appendChild(clonedCircle);
     }
-    drawPiece() {
 
+
+    maybedrawPieceAtSquare(i, j) {
+        var svg = document.getElementById(getSquareName(i, j));
+        var pos = this.getPosition();
+        if (pos.board[i][j] == "") return;
+        const sprite1 = document.getElementById(pos.board[i][j] + '1');
+        const sprite2 = document.getElementById(pos.board[i][j] + '2');
+        let auxNode = sprite1.cloneNode(false);
+        svg.appendChild(auxNode);
+        auxNode = sprite2.cloneNode(false);
+        svg.appendChild(auxNode);
     }
+
     drawPieces() {
-        let pos = this.getPosition();
         for (var i = 0; i < 8; i++) {
             for (var j = 0; j < 8; j++) {
-                var svg = document.getElementById(getSquareName(i, j));
-                // console.log()
-                // console.log(svg);
-                // console.log(getSquareName(i,j));
-                if (pos.board[i][j] !== "") {
-                    // console.log(pos.board[i][j]);
-                    const sprite1 = document.getElementById(pos.board[i][j] + '1');
-                    const sprite2 = document.getElementById(pos.board[i][j] + '2');
-                    // console.log(sprite1);
-                    let auxNode = sprite1.cloneNode(false);
-                    // console.log(auxNode);
-                    svg.appendChild(auxNode);
-                    auxNode = sprite2.cloneNode(false);
-                    svg.appendChild(auxNode);
+                if (this.flipped) {
+                    this.maybedrawPieceAtSquare(7 - i, j);
+                } else {
+                    this.maybedrawPieceAtSquare(i, j);
+
                 }
             }
         }
     }
 
+    createSquare(i, j) {
+        var square = document.createElement("div");
+        square.setAttribute("width", 100);
+        square.setAttribute("height", 100);
+        var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        svg.setAttribute("width", "100");
+        svg.setAttribute("height", "100");
+        svg.setAttribute("id", getSquareName(i, j));
+        square.appendChild(svg);
+        square.className = "square " + ((i + j) % 2 === 0 ? "white" : "black");
+        svg.addEventListener("click", svgclick);
+        svg.dataset.row = i;
+        svg.dataset.column = j;
+        square.dataset.row = i;
+        square.dataset.column = j;
+        return square;
+    }
+
     drawBoard() {
         var board_div = document.getElementById("chessboard");
+        // Remove all rows before drawing.
         while (board_div.firstChild) {
             board_div.removeChild(board_div.firstChild);
         }
         let pos = this.getPosition();
+
         for (var i = 0; i < 8; i++) {
             var row = document.createElement("div");
             row.className = "row";
             for (var j = 0; j < 8; j++) {
-                var square = document.createElement("div");
-                square.setAttribute("width", 100);
-                square.setAttribute("height", 100);
-                var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-                svg.setAttribute("width", "100");
-                svg.setAttribute("height", "100");
-                svg.setAttribute("id", getSquareName(i, j));
-                square.appendChild(svg);
-                square.className = "square " + ((i + j) % 2 === 0 ? "white" : "black");
-                svg.addEventListener("click", svgclick);
-                svg.dataset.row = i;
-                svg.dataset.column = j;
-                square.dataset.row = i;
-                square.dataset.column = j;
-                row.appendChild(square);
+                if (this.flipped) {
+                    row.appendChild(this.createSquare(7 - i, j));
+                } else {
+                    row.appendChild(this.createSquare(i, j));
+
+                }
             }
             board_div.appendChild(row);
         }
@@ -226,7 +253,7 @@ async function parsePossibleMoves(possibleMoves) {
 async function svgclick(event) {
     let elem = event.target;
     // console.log(event);
-    while(elem.tagName != 'DIV') {
+    while (elem.tagName != 'DIV') {
         console.log('going up');
         console.log(elem.tagName);
         elem = elem.parentElement;
@@ -242,9 +269,13 @@ async function svgclick(event) {
     console.log(column);
     let movesMap = await Singleton().getPosition().movesMap;
 
-    let fromName = getSquareName(row, column);
-    await Singleton().SelectSquare(fromName);
+
+    await Singleton().SelectSquare(row, column);
     event.stopPropagation();
+}
+
+async function flip_board(event) {
+    Singleton().flip_board();
 }
 
 async function IssuePossibleMovesReq(board) {
@@ -254,12 +285,13 @@ async function IssuePossibleMovesReq(board) {
         timeout: 3000,
     }
     let uci_response = await IssueUciReq(uci_req);
+    console.log(uci_response);
     return uci_response.possible_moves;
 }
 
 async function IssueUciReq(uci_req) {
-    const url = "http://127.0.0.1:8000";
-    console.log('Sending request to engine..');
+    const url = "http://127.0.0.1:9999";
+    console.log('Sepnding request to engine..');
     console.log(uci_req);
     let response = await fetch(url, {
         method: "POST",
@@ -270,9 +302,10 @@ async function IssueUciReq(uci_req) {
             "Access-Control-Allow-Origin": "*",
         }
     });
-    console.log('Received Response!!:');
-    console.log(response);
-    return await (response.json());
+    let response_json = await (response.json());
+    console.log('Received valid JSON Response!!:');
+    console.log(response_json);
+    return response_json;
 }
 
 class UciRequest {
@@ -343,4 +376,6 @@ var board = document.getElementById("chessboard");
 
 // while (true) {
 Singleton().gameLoop();
+var button = document.getElementById('flip');
+button.addEventListener("click", flip_board);
 // }

@@ -9,10 +9,10 @@ use std::collections::HashMap;
 pub fn generate_moves(bishops: BitB64) -> MovesMap {
     let mut map = HashMap::new();
     map.insert(
-        0,
+        2,
         PieceAndMoves {
             typpe: crate::chess::PieceType::Bishop,
-            moves: bitb!(8) | bitb!(16),
+            moves: bitb!(10) | bitb!(18),
         },
     );
     map

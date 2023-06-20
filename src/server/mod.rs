@@ -1,8 +1,36 @@
 use crate::{
     bitb,
-    chess::{position::{Position, self}, bitboard::{BitB64, Bitboard}},
-    UciRequest, UciResponse,
+    chess::{ChessPiece,{
+        bitboard::{BitB64, Bitboard, full_board},
+        position::{self, Position},
+    }},
+    UciRequest, UciResponse, move_gen::PieceAndMoves,
 };
+use std::str::from_utf8;
+
+pub fn RowToStr(row: u8) -> String {
+    (('0' as u8 + row + 1) as char).to_string()
+}
+
+pub fn ColToStr(col: u8) -> &'static str {
+    match col {
+        0 => "A",
+        1 => "B",
+        2 => "C",
+        3 => "D",
+        4 => "E",
+        5 => "F",
+        6 => "G",
+        7 => "H",
+        8_u8..=u8::MAX => todo!(),
+    }
+}
+
+pub fn SqIdToName(sq_id: u8) -> String {
+    let row = sq_id / 8;
+    let col = sq_id % 8;
+    format!("{}{}", ColToStr(col), RowToStr(row))
+}
 
 pub fn HandlePossibleMovesRequest(uci_req: &UciRequest) -> UciResponse {
     println!("possible moves request");
@@ -27,14 +55,24 @@ pub fn HandlePossibleMovesRequest(uci_req: &UciRequest) -> UciResponse {
             _ => (),
         }
     }
-    let continuations = position.legal_continuations();
+    let continuations_map = position.legal_continuations();
     let mut possible_moves: String = "".to_owned();
-    // for bitb_move in continuations.iter() {
-    //     possible_moves += format!("{},{}", bitb_move.from, bitb_move.to).as_ref();
-    // }
+    for (sq_id, piece_n_moves) in continuations_map.iter() {
+        let mut cur_piece_moves = piece_n_moves.moves;
+        while cur_piece_moves != 0 {
+            let zeros = cur_piece_moves.trailing_zeros() as u8;
+            println!("{}:{}", SqIdToName(*sq_id), SqIdToName(zeros + 1));
+            possible_moves += format!("{}:{},", SqIdToName(*sq_id), SqIdToName(zeros + 1)).as_ref(); 
+            cur_piece_moves ^= bitb!(zeros + 1);
+            break;
+        }
+    }
+    
+    possible_moves.pop();
     println!("Computed possible moves: [{}]", possible_moves);
     UciResponse {
         best_moves: "".to_string(),
-        possible_moves: "A1:B2,B2:C3,B2:C4".to_string(),
+        possible_moves: possible_moves,
+        // possible_moves: "A2:A3,A2:A4,B2:B3,B2:B4,C2:C3,C2:C4,D2:D3,D2:D4,E2:E3,E2:E4,F2:F3,F2:F4,G2:G3,G2:G4,H2:H3,H2:H4".to_string(),
     }
 }

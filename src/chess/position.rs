@@ -8,7 +8,7 @@ use crate::move_gen::{
 use crate::RUNTIME;
 use crate::{bitb, bitb16, bitb32, bitb8};
 
-use super::bitboard::full_board;
+use super::bitboard::{self, full_board, empty_board};
 
 enum PositionInfoMetadataBits {
     PlayerToMove,
@@ -21,6 +21,7 @@ enum CastlingRightsBits {
     BlackLongCastlingRights,
 }
 
+#[derive(Clone, Copy)]
 pub struct PositionInfo {
     pub white_unused_en_passant: u8,
     pub black_unused_en_passant: u8,
@@ -89,6 +90,7 @@ impl PositionInfo {
 }
 
 // Bitboard representation of a chess position.
+#[derive(Clone, Copy)]
 pub struct Position {
     pub white: Bitboard,
     pub black: Bitboard,
@@ -98,8 +100,8 @@ pub struct Position {
 impl Position {
     pub fn new() -> Position {
         Position {
-            white: Bitboard::new(),
-            black: Bitboard::new(),
+            white: Bitboard::new(PlayerColor::White),
+            black: Bitboard::new(PlayerColor::Black),
             position_info: PositionInfo::new(),
         }
     }
@@ -108,89 +110,98 @@ impl Position {
         self.position_info.pass_turn();
     }
 
-    pub fn make_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> () {
+    pub fn player_to_move(&self) -> PlayerColor {
+        if self.position_info.white_to_move() {
+            PlayerColor::White
+        } else {
+            PlayerColor::Black
+        }
+    }
+
+    pub fn pieces_to_move(&self) -> &Bitboard {
+        match self.player_to_move() {
+            PlayerColor::Black => &self.black,
+            PlayerColor::White => &self.white,
+        }
+    }
+
+    pub fn update_info(&mut self) {
+        self.pass_turn();
+    }
+
+    pub fn make_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> &mut Self {
         // Remove the piece from its old position.
         // gets black or white bitboard
 
-        let bitboard = match piece.color {
+        let pieces_to_move = match piece.color {
             PlayerColor::White => &mut self.white,
             PlayerColor::Black => &mut self.black,
         };
         // remove piece from its old pos
-        match piece.typpe {
-            PieceType::Pawn => bitboard.pawns &= !bitb!(mv.from),
-            PieceType::Knight => bitboard.knights &= !bitb!(mv.from),
-            PieceType::Bishop => bitboard.bishops &= !bitb!(mv.from),
-            PieceType::Rook => bitboard.rooks &= !bitb!(mv.from),
-            PieceType::Queen => bitboard.queens &= !bitb!(mv.from),
-            PieceType::King => bitboard.king &= !bitb!(mv.from),
-        };
+        //  &= !bitb!(mv.from)
+        let pieces = pieces_to_move.mut_pieces(piece.typpe);
+        *pieces &= full_board & bitb!(mv.from);
+        *pieces |= bitb!(mv.to);
 
-        // move to new pos
-        match piece.typpe {
-            PieceType::Pawn => bitboard.pawns |= bitb!(mv.from),
-            PieceType::Knight => bitboard.knights |= bitb!(mv.from),
-            PieceType::Bishop => bitboard.bishops |= bitb!(mv.from),
-            PieceType::Rook => bitboard.rooks |= bitb!(mv.from),
-            PieceType::Queen => bitboard.queens |= bitb!(mv.from),
-            PieceType::King => bitboard.king |= bitb!(mv.from),
-        };
-
-        // if piece.typpe == PieceType::Pawn && abs(mv.from - mv.to) == 16 {
-        //     // update used
-        //     // update usable
-        // }
-
-        // Update the castling rights.
+        // TODO(implement castling info updates.)
+        self.update_info();
+        // Return mutable reference to self to allow chaining calls.
+        self
     }
 
+    // Returns whether king of given |color| is in check.
     pub fn is_check(&self, color: PlayerColor) -> bool {
         // let own_pieces =
         // let enemy_pieces =
         return false;
     }
 
-    pub fn is_check_after_move(&self, mv: &BitboardMove, typpe: PieceType) -> bool {
+    pub fn is_check_after_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> bool {
         // Make the mv.
-        // self.make_move(mv, piece);
-        // let old = *self;
-        // // // Check if the king is in check.
-        // // let is_check = self.is_check(mv, piece.color);
-
-        // *self = old;
-
-        // // Return the result.
-        // return is_check;
-        return false;
+        let old = *self;
+        self.make_move(mv, piece);
+        let is_check = self.is_check(PlayerColor::other(piece.color));
+        *self = old;
+        return is_check;
     }
-    pub fn legal_continuations(&self) -> MovesMap {
+
+    pub fn legal_continuations(&mut self) -> MovesMap {
         let possible_moves_map = self.pseudolegal_continuations();
         let mut result = MovesMap::new();
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
-            let mut cur_piece_moves = piece_and_moves.moves;
-            while cur_piece_moves != 0 {
-                let zeros = cur_piece_moves.trailing_zeros();
+            let mut move_set = piece_and_moves.moves;
+            let mut legal_move_set = bitboard::empty_board;
+            while move_set != empty_board {
+                let zeros = move_set.trailing_zeros();
                 // rightmost_one = bitb!(zeros + 1);
                 let bitb_move = BitboardMove {
                     from: *from_id,
                     to: (zeros + 1) as u8,
                 };
-                if self.is_check_after_move(&bitb_move, typpe) {
+                if !self.is_check_after_move(
+                    &bitb_move,
+                    ChessPiece {
+                        typpe: typpe,
+                        color: self.player_to_move(),
+                    },
+                ) {
                     println!(
-                        "filtering move because is check: from: {} to: {}",
+                        "adding move as its not checks: from: {} to: {}",
                         from_id,
                         zeros + 1
                     );
-                    cur_piece_moves &= full_board & !bitb!(zeros + 1);
+                    legal_move_set |= bitb!(zeros + 1);
                 }
+                move_set ^= bitb!(zeros + 1);
+                break;
             }
             result.insert(
                 *from_id,
                 PieceAndMoves {
                     typpe: typpe,
-                    moves: cur_piece_moves,
+                    moves: legal_move_set,
                 },
             );
         }
@@ -201,18 +212,16 @@ impl Position {
         // Iterate over all of the pieces on the board.
         let mut result = MovesMap::new();
 
-        let pieces = match self.position_info.white_to_move() {
-            true => &self.white,
-            false => &self.black,
-        };
+        let pieces = self.pieces_to_move();
 
-        merge_moves_map(pawn::generate_moves(pieces.pawns), &mut result);
+        merge_moves_map(pawn::generate_moves(&self, pieces.pawns), &mut result);
         merge_moves_map(knight::generate_moves(pieces.knights), &mut result);
         merge_moves_map(bishop::generate_moves(pieces.bishops), &mut result);
         merge_moves_map(rook::generate_moves(pieces.rooks), &mut result);
         merge_moves_map(queen::generate_moves(pieces.queens), &mut result);
         merge_moves_map(king::generate_moves(pieces.king), &mut result);
 
+        println!("pseudolegal!");
         result
     }
 }
