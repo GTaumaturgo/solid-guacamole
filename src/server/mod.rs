@@ -61,10 +61,9 @@ pub fn HandlePossibleMovesRequest(uci_req: &UciRequest) -> UciResponse {
         let mut cur_piece_moves = piece_n_moves.moves;
         while cur_piece_moves != 0 {
             let zeros = cur_piece_moves.trailing_zeros() as u8;
-            println!("{}:{}", SqIdToName(*sq_id), SqIdToName(zeros + 1));
-            possible_moves += format!("{}:{},", SqIdToName(*sq_id), SqIdToName(zeros + 1)).as_ref(); 
-            cur_piece_moves ^= bitb!(zeros + 1);
-            break;
+            println!("{}:{}", SqIdToName(*sq_id), SqIdToName(zeros));
+            possible_moves += format!("{}:{},", SqIdToName(*sq_id), SqIdToName(zeros)).as_ref(); 
+            cur_piece_moves ^= bitb!(zeros);
         }
     }
     

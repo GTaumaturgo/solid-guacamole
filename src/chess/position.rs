@@ -117,11 +117,26 @@ impl Position {
             PlayerColor::Black
         }
     }
+    
+    pub fn enemy_player(&self) -> PlayerColor {
+        if self.position_info.white_to_move() {
+            PlayerColor::Black
+        } else {
+            PlayerColor::White
+        }
+    }
 
     pub fn pieces_to_move(&self) -> &Bitboard {
         match self.player_to_move() {
             PlayerColor::Black => &self.black,
             PlayerColor::White => &self.white,
+        }
+    }
+
+    pub fn enemy_pieces(&self) -> &Bitboard {
+        match self.player_to_move() {
+            PlayerColor::White => &self.white,
+            PlayerColor::Black => &self.black,
         }
     }
 
@@ -175,10 +190,9 @@ impl Position {
             let mut legal_move_set = bitboard::empty_board;
             while move_set != empty_board {
                 let zeros = move_set.trailing_zeros();
-                // rightmost_one = bitb!(zeros + 1);
                 let bitb_move = BitboardMove {
                     from: *from_id,
-                    to: (zeros + 1) as u8,
+                    to: (zeros) as u8,
                 };
                 if !self.is_check_after_move(
                     &bitb_move,
@@ -190,12 +204,11 @@ impl Position {
                     println!(
                         "adding move as its not checks: from: {} to: {}",
                         from_id,
-                        zeros + 1
+                        zeros
                     );
-                    legal_move_set |= bitb!(zeros + 1);
+                    legal_move_set |= bitb!(zeros);
                 }
-                move_set ^= bitb!(zeros + 1);
-                break;
+                move_set ^= bitb!(zeros);
             }
             result.insert(
                 *from_id,
@@ -213,11 +226,11 @@ impl Position {
         let mut result = MovesMap::new();
 
         let pieces = self.pieces_to_move();
-
+        println!("pieces_pawns: {}", pieces.pawns);
         merge_moves_map(pawn::generate_moves(&self, pieces.pawns), &mut result);
         merge_moves_map(knight::generate_moves(pieces.knights), &mut result);
         merge_moves_map(bishop::generate_moves(pieces.bishops), &mut result);
-        merge_moves_map(rook::generate_moves(pieces.rooks), &mut result);
+        merge_moves_map(rook::generate_moves(&self, pieces.rooks), &mut result);
         merge_moves_map(queen::generate_moves(pieces.queens), &mut result);
         merge_moves_map(king::generate_moves(pieces.king), &mut result);
 
