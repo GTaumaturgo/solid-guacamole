@@ -23,7 +23,7 @@ extern crate serde;
 use rocket::fs::FileServer;
 use rocket::response::{self, Redirect, Result};
 use rocket::serde::json::Json;
-use rocket::{Data, Request};
+use rocket::{Data, Request, Rocket, Build};
 use crate::runtime::EngineRuntime;
 use rocket::{
     get,
@@ -65,7 +65,7 @@ fn engine(uci_req: Json<UciRequest>) -> Json<UciResponse> {
     let uci_req = uci_req.into_inner();
     let req_type = uci_req.req_type.clone();
     let resp: UciResponse = if req_type == "possible_moves" {
-        server::HandlePossibleMovesRequest(&uci_req)
+        server::handle_possible_moves_request(&uci_req)
     } else if req_type == "best_moves" {
         UciResponse {
             best_moves: "qqq".to_string(),
@@ -82,7 +82,7 @@ fn engine(uci_req: Json<UciRequest>) -> Json<UciResponse> {
 }
 
 #[launch]
-fn rocket() -> _ {
+fn rocket() -> Rocket<Build> {
     rocket::build()
         .mount("/", routes![index, engine])
         .mount("/public", FileServer::from("public"))

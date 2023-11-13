@@ -6,13 +6,14 @@ use crate::{
     }},
     UciRequest, UciResponse, move_gen::PieceAndMoves,
 };
+
 use std::str::from_utf8;
 
-pub fn RowToStr(row: u8) -> String {
+pub fn row_to_str(row: u8) -> String {
     (('0' as u8 + row + 1) as char).to_string()
 }
 
-pub fn ColToStr(col: u8) -> &'static str {
+pub fn col_to_str(col: u8) -> &'static str {
     match col {
         0 => "A",
         1 => "B",
@@ -26,15 +27,16 @@ pub fn ColToStr(col: u8) -> &'static str {
     }
 }
 
-pub fn SqIdToName(sq_id: u8) -> String {
+pub fn sq_id_to_name(sq_id: u8) -> String {
     let row = sq_id / 8;
     let col = sq_id % 8;
-    format!("{}{}", ColToStr(col), RowToStr(row))
+    format!("{}{}", col_to_str(col), row_to_str(row))
 }
 
-pub fn HandlePossibleMovesRequest(uci_req: &UciRequest) -> UciResponse {
+pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
     println!("possible moves request");
     print!("{}", uci_req.board);
+    
     let mut position = Position::new();
 
     for (i, char) in uci_req.board.chars().enumerate() {
@@ -61,8 +63,8 @@ pub fn HandlePossibleMovesRequest(uci_req: &UciRequest) -> UciResponse {
         let mut cur_piece_moves = piece_n_moves.moves;
         while cur_piece_moves != 0 {
             let zeros = cur_piece_moves.trailing_zeros() as u8;
-            println!("{}:{}", SqIdToName(*sq_id), SqIdToName(zeros));
-            possible_moves += format!("{}:{},", SqIdToName(*sq_id), SqIdToName(zeros)).as_ref(); 
+            println!("{}:{}", sq_id_to_name(*sq_id), sq_id_to_name(zeros));
+            possible_moves += format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(zeros)).as_ref(); 
             cur_piece_moves ^= bitb!(zeros);
         }
     }

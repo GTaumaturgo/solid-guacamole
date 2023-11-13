@@ -74,16 +74,5 @@ pub fn generate_moves(pos: &Position, mut rook_set: BitB64) -> MovesMap {
             },
         );
     }
-    // for (sq_id, piece_n_moves) in continuations_map.iter() {
-    //     let mut cur_piece_moves = piece_n_moves.moves;
-    //         let zeros = cur_piece_moves.trailing_zeros() as u8;
-    //     }
-    // map.insert(
-    //     0,
-    //     PieceAndMoves {
-    //         typpe: crate::chess::PieceType::King,
-    //         moves: bitb!(8) | bitb!(16),
-    //     },
-    // );
     result
 }

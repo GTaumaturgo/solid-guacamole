@@ -18,7 +18,6 @@ impl MoveSearch for MinimaxSearch {
 
         moves.sort_by(|a, b| a.score.cmp(&b.score));
         moves.truncate(topk);
-
         moves
     }
 

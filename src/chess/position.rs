@@ -8,7 +8,7 @@ use crate::move_gen::{
 use crate::RUNTIME;
 use crate::{bitb, bitb16, bitb32, bitb8};
 
-use super::bitboard::{self, full_board, empty_board};
+use super::bitboard::{self, empty_board, full_board};
 
 enum PositionInfoMetadataBits {
     PlayerToMove,
@@ -106,6 +106,38 @@ impl Position {
         }
     }
 
+    pub fn from_board_str(board: String) -> Position {
+        let mut white_bitboard = Bitboard {
+            pawns: empty_board,
+            knights: empty_board,
+            bishops: empty_board,
+            rooks: empty_board,
+            queens: empty_board,
+            king: empty_board,
+        };
+        let mut black_bitboard = Bitboard {
+            pawns: empty_board,
+            knights: empty_board,
+            bishops: empty_board,
+            rooks: empty_board,
+            queens: empty_board,
+            king: empty_board,
+        };
+        let mut result = Position {
+            white: white_bitboard,
+            black: black_bitboard,
+            position_info: PositionInfo {
+                white_unused_en_passant: 0u8,
+                black_unused_en_passant: 0u8,
+                white_usable_en_passant: 0u8,
+                black_usable_en_passant: 0u8,
+                castling_rights: 0u8,
+                metadata: 0u8,
+            },
+        };
+        result
+    }
+
     pub fn pass_turn(&mut self) -> () {
         self.position_info.pass_turn();
     }
@@ -117,7 +149,7 @@ impl Position {
             PlayerColor::Black
         }
     }
-    
+
     pub fn enemy_player(&self) -> PlayerColor {
         if self.position_info.white_to_move() {
             PlayerColor::Black
@@ -203,8 +235,7 @@ impl Position {
                 ) {
                     println!(
                         "adding move as its not checks: from: {} to: {}",
-                        from_id,
-                        zeros
+                        from_id, zeros
                     );
                     legal_move_set |= bitb!(zeros);
                 }
@@ -228,11 +259,11 @@ impl Position {
         let pieces = self.pieces_to_move();
         println!("pieces_pawns: {}", pieces.pawns);
         merge_moves_map(pawn::generate_moves(&self, pieces.pawns), &mut result);
-        merge_moves_map(knight::generate_moves(pieces.knights), &mut result);
-        merge_moves_map(bishop::generate_moves(pieces.bishops), &mut result);
+        merge_moves_map(knight::generate_moves(&self, pieces.knights), &mut result);
+        merge_moves_map(bishop::generate_moves(&self, pieces.bishops), &mut result);
         merge_moves_map(rook::generate_moves(&self, pieces.rooks), &mut result);
-        merge_moves_map(queen::generate_moves(pieces.queens), &mut result);
-        merge_moves_map(king::generate_moves(pieces.king), &mut result);
+        merge_moves_map(queen::generate_moves(&self, pieces.queens), &mut result);
+        merge_moves_map(king::generate_moves(&self, pieces.king), &mut result);
 
         println!("pseudolegal!");
         result

@@ -6,7 +6,7 @@ limits = { form = "64 kB", json = "1 MiB" }
 
 ## set only when compiled in debug mode, i.e, `cargo build`
 [debug]
-port = 8999
+port = 9999
 ## only the `json` key from `default` will be overridden; `form` will remain
 limits = { json = "10MiB" }
 
