@@ -196,9 +196,7 @@ export class Controller {
         // Check if has piece.
         if (pos.getPiece(i, j) == "") return;
         var piece_div = document.getElementById(getSquareName(i, j) + PIECE_DIV_SUFFIX);
-        console.log(getSquareName(i, j) + PIECE_DIV_SUFFIX);
-        console.log(this.piece_to_class.get(pos.getPiece(i, j)));
-        piece_div.setAttribute("class", this.piece_to_class.get(pos.getPiece(i, j)));
+        piece_div.classList.add(this.piece_to_class.get(pos.getPiece(i, j)));   
     }
 
     drawOverlay(toName) {
@@ -230,10 +228,8 @@ export class Controller {
         }
         var piece_div = document.createElement("div");
 
-        piece_div.style.height = '100px';
-        piece_div.style.width = '100px';
         piece_div.setAttribute("id", getSquareName(i, j) + PIECE_DIV_SUFFIX);
-
+        piece_div.classList.add("piece-container");
         var square = document.createElement("div");
         square.style.gridArea = `${i + 1} / ${j + 1} / ${i + 2} / ${j + 2}`
         square.addEventListener("click", squareOnClick);
@@ -245,8 +241,6 @@ export class Controller {
 
         var overlay_div = document.createElement("div");
         overlay_div.setAttribute("id", getSquareName(i, j) + OVERLAY_DIV_SUFFIX);
-        overlay_div.style.height = '100px';
-        overlay_div.style.width = '100px';
         square.appendChild(overlay_div);
         return square;
     }
