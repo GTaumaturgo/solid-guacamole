@@ -1,0 +1,4 @@
+[rustfmt]
+indent_style = "space"
+indent_amount = 2
+line_length = 120

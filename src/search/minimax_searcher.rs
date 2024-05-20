@@ -32,7 +32,7 @@ impl MoveSearch for MinimaxSearch {
             let mut child_position = position.clone();
             child_position.make_move(mv);
 
-            let score = self.alpha_beta_search(child_position, depth - 1);
+            let score = self.minimax_search(child_position, depth - 1);
             best_score = std::cmp::max(best_score, score);
         }
         best_score

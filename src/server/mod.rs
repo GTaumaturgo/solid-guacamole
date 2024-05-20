@@ -1,10 +1,10 @@
 use crate::{
-    bitb,
-    chess::{ChessPiece,{
-        bitboard::{BitB64, Bitboard, full_board},
-        position::{self, Position},
-    }},
-    UciRequest, UciResponse, move_gen::PieceAndMoves,
+    chess::{
+        bitboard::{BitArraySize, BitB64, PlayerBitboard, FULL_BOARD},
+        position::Position,
+    },
+    move_gen::PieceAndMoves,
+    UciRequest, UciResponse,
 };
 
 use std::str::from_utf8;
@@ -35,12 +35,15 @@ pub fn sq_id_to_name(sq_id: u8) -> String {
 
 pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
     println!("possible moves request");
-    print!("{}", uci_req.board);
-    
-    let mut position = Position::new();
+    println!("Received board from UCI Req");
+    println!("{}", uci_req.board);
+    println!("Received p_to_move:");
+    println!("{}", uci_req.p_to_move);
+
+    let mut position = Position::from_uci(uci_req);
 
     for (i, char) in uci_req.board.chars().enumerate() {
-        let cur_sq = bitb!(i);
+        let cur_sq = u64::nth(i as u8);
         match char {
             'R' => position.black.rooks |= cur_sq,
             'N' => position.black.knights |= cur_sq,
@@ -64,16 +67,16 @@ pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
         while cur_piece_moves != 0 {
             let zeros = cur_piece_moves.trailing_zeros() as u8;
             println!("{}:{}", sq_id_to_name(*sq_id), sq_id_to_name(zeros));
-            possible_moves += format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(zeros)).as_ref(); 
-            cur_piece_moves ^= bitb!(zeros);
+            possible_moves +=
+                format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(zeros)).as_ref();
+            cur_piece_moves ^= u64::nth(zeros);
         }
     }
-    
+
     possible_moves.pop();
     println!("Computed possible moves: [{}]", possible_moves);
     UciResponse {
         best_moves: "".to_string(),
         possible_moves: possible_moves,
-        // possible_moves: "A2:A3,A2:A4,B2:B3,B2:B4,C2:C3,C2:C4,D2:D3,D2:D4,E2:E3,E2:E4,F2:F3,F2:F4,G2:G3,G2:G4,H2:H3,H2:H4".to_string(),
     }
 }

@@ -4,11 +4,10 @@ pub mod evaluation;
 pub mod move_gen;
 pub mod search;
 pub mod server;
-pub mod runtime;
 use move_gen::MovesMap;
 use once_cell::sync::Lazy;
 
-static RUNTIME: Lazy<EngineRuntime> = Lazy::new(|| { runtime::EngineRuntime::new()});
+// static RUNTIME: Lazy<EngineRuntime> = Lazy::new(|| { runtime::EngineRuntime::new()});
 
 // static RUNTIME: &EngineRuntime = &EngineRuntime::new();
 
@@ -20,24 +19,22 @@ extern crate strum_macros;
 extern crate rocket;
 extern crate serde;
 
-use rocket::fs::FileServer;
-use rocket::response::{self, Redirect, Result};
-use rocket::serde::json::Json;
-use rocket::{Data, Request, Rocket, Build};
-use crate::runtime::EngineRuntime;
 use rocket::{
-    get,
-    http::{ContentType, Header, Status},
-    post,
-    response::{Responder, Response},
+    fs::FileServer,
+    get, post,
+    response::{Redirect, Responder},
     routes,
+    serde::json::Json,
+    Build, Rocket,
 };
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
 // IfChange:
 pub struct UciRequest {
+    pub p_to_move: String,
     pub board: String,
     pub req_type: String,
     pub timeout: u32,
@@ -60,9 +57,9 @@ fn index() -> Redirect {
     Redirect::to("/public/chess.html")
 }
 
-#[post("/", format = "json", data = "<uci_req>")]
-fn engine(uci_req: Json<UciRequest>) -> Json<UciResponse> {
-    let uci_req = uci_req.into_inner();
+#[post("/", format = "json", data = "<wrapped_uci_req>")]
+fn engine(wrapped_uci_req: Json<UciRequest>) -> Json<UciResponse> {
+    let uci_req = wrapped_uci_req.into_inner();
     let req_type = uci_req.req_type.clone();
     let resp: UciResponse = if req_type == "possible_moves" {
         server::handle_possible_moves_request(&uci_req)
@@ -87,4 +84,3 @@ fn rocket() -> Rocket<Build> {
         .mount("/", routes![index, engine])
         .mount("/public", FileServer::from("public"))
 }
-

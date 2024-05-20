@@ -1,81 +1,67 @@
-use super::{MovesMap, PieceAndMoves};
-use crate::bitb;
+use super::internal::{intersect, is_inside_board, try_generate_move_in_direction};
+use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
+use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
 use crate::chess::position::Position;
-use crate::chess::PlayerColor;
 use crate::chess::{
-    bitboard::{empty_board, BitB64, BitboardMove},
+    bitboard::{BitB64, BitboardMove, EMPTY_BOARD},
     PieceType,
 };
-use std::collections::hash_map;
+
 use std::collections::HashMap;
 
-pub fn generate_moves(pos: &Position, mut bishop_set: BitB64) -> MovesMap {
+pub fn generate_moves_as(pos: &Position, mut piece_set: BitB64) -> MovesMap {
     let mut result = HashMap::new();
-    let mut i = 0;
-    while bishop_set != 0 {
-        let id = bishop_set.trailing_zeros() as u8;
-        let cur_bishop = bitb!(id);
-        bishop_set ^= cur_bishop;
-        let mut cur_bishop_moves = empty_board;
+    while piece_set != 0 {
+        let id = piece_set.trailing_zeros() as i8;
+        let cur_bishop = u64::nth(id as u8);
+        piece_set ^= cur_bishop; // Remove bishop from the set.
+        let mut cur_bishop_moves = EMPTY_BOARD;
 
-        let mut blocking_upwards_leftwards = false;
-        let mut blocking_upwards_rightwards = false;
-        let mut blocking_downwards_leftwards = false;
-        let mut blocking_downwards_rightwards = false;
         let enemy_pieces = pos.enemy_pieces();
-        let own_pieces = pos.pieces_to_move();
+        let ally_pieces = pos.pieces_to_move();
+
+        // Try all possible distances (1..7 in all four diagonals):
+        let mut all_diagonals_blockedness = vec![
+            false, // upleft
+            false, // upright
+            false, // downleft
+            false, // downright
+        ];
         for i in 1..7 {
-            if !blocking_upwards_leftwards && (id + 8 * i < 64 && id % 8 - i >= 0) {
-                let sq_upwards_leftwards = bitb!(id + (8 * i) - i);
-                if sq_upwards_leftwards & own_pieces.all_pieces() != 0 {
-                    blocking_upwards_leftwards = true;
-                }
-                if sq_upwards_leftwards & enemy_pieces.all_pieces() != 0 {
-                    cur_bishop_moves |= sq_upwards_leftwards;
-                    blocking_upwards_leftwards = true;
-                }
-            }
-            if !blocking_upwards_rightwards && (id + 8 * i < 64 && i <= id % 8) {
-                let sq_upwards_rightwards = bitb!(id + (8 * i) + i);
-                if sq_upwards_rightwards & own_pieces.all_pieces() != 0 {
-                    blocking_upwards_rightwards = true;
-                }
-                if sq_upwards_rightwards & enemy_pieces.all_pieces() != 0 {
-                    cur_bishop_moves |= sq_upwards_rightwards;
-                    blocking_upwards_rightwards = true;
-                }
-            }
-            if !blocking_downwards_leftwards && (8 * i <= id && id % 8 - i >= 0) {
-                let sq_downwards_leftwards = bitb!(id - (8 * i) - i);
-                if sq_downwards_leftwards & own_pieces.all_pieces() != 0 {
-                    blocking_downwards_leftwards = true;
-                }
-                if sq_downwards_leftwards & enemy_pieces.all_pieces() != 0 {
-                    cur_bishop_moves |= sq_downwards_leftwards;
-                    blocking_downwards_leftwards = true;
-                }
-            }
-            if !blocking_downwards_rightwards && i <= id % 8 && 8 * i <= id {
-                let sq_downwards_rightwards = bitb!(id - (8 * i) + i);
-                if sq_downwards_rightwards & own_pieces.all_pieces() != 0 {
-                    blocking_downwards_rightwards = true;
-                }
-                if sq_downwards_rightwards & enemy_pieces.all_pieces() != 0 {
-                    cur_bishop_moves |= sq_downwards_rightwards;
-                    blocking_downwards_rightwards = true;
-                }
+            let id_upleft = 8 * i + id - i;
+            let id_upright = 8 * i + id + i;
+            let id_downleft = (id - 8 * i) - i;
+            let id_downright = (id - 8 * i) + i;
+            let all_dir_ids = vec![id_upleft, id_upright, id_downleft, id_downright];
+            for (dir_sq_id, mut dir_blocked) in
+                all_dir_ids.iter().zip(all_diagonals_blockedness.iter_mut())
+            {
+                try_generate_move_in_direction(
+                    *dir_sq_id,
+                    ally_pieces,
+                    enemy_pieces,
+                    &mut dir_blocked,
+                    &mut cur_bishop_moves,
+                );
             }
         }
-        if cur_bishop_moves == empty_board {
-            continue;
+        if cur_bishop_moves != EMPTY_BOARD {
+            result.insert(
+                id as u8,
+                PieceAndMoves {
+                    typpe: PieceType::Bishop,
+                    moves: cur_bishop_moves,
+                },
+            );
         };
-        result.insert(
-            id,
-            PieceAndMoves {
-                typpe: PieceType::Bishop,
-                moves: cur_bishop_moves,
-            },
-        );
     }
     result
+}
+
+pub struct BishopBitboardMoveGenerator {}
+
+impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
+    fn generate_moves(pos: &Position) -> MovesMap {
+        generate_moves_as(pos, pos.pieces_to_move().bishops)
+    }
 }

@@ -1,14 +1,16 @@
 use rocket::log::private::debug;
 
-use crate::chess::bitboard::{BitB64, Bitboard, BitboardMove};
+use crate::chess::bitboard::{
+    BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD, FULL_BOARD,
+};
 use crate::chess::{ChessPiece, PieceType, PlayerColor};
 use crate::move_gen::{
-    bishop, king, knight, merge_moves_map, pawn, queen, rook, MovesMap, PieceAndMoves,
+    bishop::BishopBitboardMoveGenerator, king::KingBitboardMoveGenerator,
+    knight::KnightBitboardMoveGenerator, merge_moves_map, pawn::PawnBitboardMoveGenerator,
+    queen::QueenBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
+    MovesMap, PieceAndMoves,
 };
-use crate::RUNTIME;
-use crate::{bitb, bitb16, bitb32, bitb8};
-
-use super::bitboard::{self, empty_board, full_board};
+use crate::UciRequest;
 
 enum PositionInfoMetadataBits {
     PlayerToMove,
@@ -56,11 +58,26 @@ impl PositionInfo {
     }
     pub fn pass_turn(&mut self) {
         // Flip bit 0 and 1. 3 = 1 + 2
-        self.metadata ^= bitb8!(PositionInfoMetadataBits::PlayerToMove);
+        self.metadata ^= u8::nth(PositionInfoMetadataBits::PlayerToMove as u8);
+    }
+
+    // Mutates metadata setting the player to move. Returns the metadata to be consumed optionally if convenient.
+    pub fn set_player_to_move(&mut self, color: PlayerColor) -> u8 {
+        let result = match color {
+            PlayerColor::White => {
+                u8::disable_nth(self.metadata, PositionInfoMetadataBits::PlayerToMove as u8)
+            }
+            PlayerColor::Black => {
+                u8::enable_nth(self.metadata, PositionInfoMetadataBits::PlayerToMove as u8)
+            }
+        };
+        self.metadata = result;
+        self.metadata
     }
 
     pub fn white_to_move(&self) -> bool {
-        self.metadata & bitb8!(PositionInfoMetadataBits::PlayerToMove) == 0
+        let white_as_u8 = PlayerColor::White as u8;
+        self.metadata & u8::nth(PositionInfoMetadataBits::PlayerToMove as u8) == white_as_u8
     }
 
     pub fn black_to_move(&self) -> bool {
@@ -70,20 +87,24 @@ impl PositionInfo {
     pub fn short_castling_allowed(&self, color: PlayerColor) -> bool {
         match color {
             PlayerColor::White => {
-                (self.castling_rights & bitb8!(CastlingRightsBits::WhiteShortCastlingRights)) != 0
+                (self.castling_rights & u8::nth(CastlingRightsBits::WhiteShortCastlingRights as u8))
+                    != 0
             }
             PlayerColor::Black => {
-                (self.castling_rights & bitb8!(CastlingRightsBits::BlackShortCastlingRights)) != 0
+                (self.castling_rights & u8::nth(CastlingRightsBits::BlackShortCastlingRights as u8))
+                    != 0
             }
         }
     }
     pub fn long_castling_allowed(&self, color: PlayerColor) -> bool {
         match color {
             PlayerColor::White => {
-                (self.castling_rights & bitb8!(CastlingRightsBits::WhiteLongCastlingRights)) != 0
+                (self.castling_rights & u8::nth(CastlingRightsBits::WhiteLongCastlingRights as u8))
+                    != 0
             }
             PlayerColor::Black => {
-                (self.castling_rights & bitb8!(CastlingRightsBits::BlackLongCastlingRights)) != 0
+                (self.castling_rights & u8::nth(CastlingRightsBits::BlackLongCastlingRights as u8))
+                    != 0
             }
         }
     }
@@ -92,50 +113,71 @@ impl PositionInfo {
 // Bitboard representation of a chess position.
 #[derive(Clone, Copy)]
 pub struct Position {
-    pub white: Bitboard,
-    pub black: Bitboard,
+    pub white: PlayerBitboard,
+    pub black: PlayerBitboard,
     pub position_info: PositionInfo,
 }
 
 impl Position {
     pub fn new() -> Position {
         Position {
-            white: Bitboard::new(PlayerColor::White),
-            black: Bitboard::new(PlayerColor::Black),
+            white: PlayerBitboard::new(PlayerColor::White),
+            black: PlayerBitboard::new(PlayerColor::Black),
             position_info: PositionInfo::new(),
         }
     }
 
-    pub fn from_board_str(board: String) -> Position {
-        let mut white_bitboard = Bitboard {
-            pawns: empty_board,
-            knights: empty_board,
-            bishops: empty_board,
-            rooks: empty_board,
-            queens: empty_board,
-            king: empty_board,
-        };
-        let mut black_bitboard = Bitboard {
-            pawns: empty_board,
-            knights: empty_board,
-            bishops: empty_board,
-            rooks: empty_board,
-            queens: empty_board,
-            king: empty_board,
-        };
-        let mut result = Position {
-            white: white_bitboard,
-            black: black_bitboard,
-            position_info: PositionInfo {
-                white_unused_en_passant: 0u8,
-                black_unused_en_passant: 0u8,
-                white_usable_en_passant: 0u8,
-                black_usable_en_passant: 0u8,
-                castling_rights: 0u8,
-                metadata: 0u8,
-            },
-        };
+    pub fn decode_pieces(board: &String) -> (PlayerBitboard, PlayerBitboard) {
+        let mut white = PlayerBitboard::empty();
+        let mut black = PlayerBitboard::empty();
+
+        for (i, ch) in board.chars().enumerate() {
+            if ch == '.' {
+                continue;
+            }
+            let bitb = match ch {
+                'k' => &mut white.king,
+                'K' => &mut black.king,
+                'q' => &mut white.queens,
+                'Q' => &mut black.queens,
+                'r' => &mut white.rooks,
+                'R' => &mut black.rooks,
+                'b' => &mut white.bishops,
+                'B' => &mut black.bishops,
+                'n' => &mut white.knights,
+                'N' => &mut black.knights,
+                'p' => &mut white.pawns,
+                'P' => &mut black.pawns,
+                _ => todo!(),
+            };
+            *bitb |= u64::nth(i as u8);
+        }
+        // todo
+        (white, black)
+    }
+
+    pub fn decode_position_info(uci_req: &UciRequest) -> PositionInfo {
+        let mut result = PositionInfo::new();
+
+        result.set_player_to_move(match uci_req.p_to_move.as_ref() {
+            "B" => PlayerColor::Black,
+            "W" => PlayerColor::White,
+            _ => todo!(),
+        });
         result
+    }
+
+    pub fn from_uci(uci_req: &UciRequest) -> Position {
+        //fill position info
+        let pos_info = Self::decode_position_info(uci_req);
+        // fill bitboards
+        let (white, black) = Self::decode_pieces(&uci_req.board);
+
+        Position {
+            white: white,
+            black: black,
+            position_info: pos_info,
+        }
     }
 
     pub fn pass_turn(&mut self) -> () {
@@ -158,14 +200,14 @@ impl Position {
         }
     }
 
-    pub fn pieces_to_move(&self) -> &Bitboard {
+    pub fn pieces_to_move(&self) -> &PlayerBitboard {
         match self.player_to_move() {
             PlayerColor::Black => &self.black,
             PlayerColor::White => &self.white,
         }
     }
 
-    pub fn enemy_pieces(&self) -> &Bitboard {
+    pub fn enemy_pieces(&self) -> &PlayerBitboard {
         match self.player_to_move() {
             PlayerColor::White => &self.white,
             PlayerColor::Black => &self.black,
@@ -185,10 +227,10 @@ impl Position {
             PlayerColor::Black => &mut self.black,
         };
         // remove piece from its old pos
-        //  &= !bitb!(mv.from)
+        //  &= !u64::nth(mv.from)
         let pieces = pieces_to_move.mut_pieces(piece.typpe);
-        *pieces &= full_board & bitb!(mv.from);
-        *pieces |= bitb!(mv.to);
+        *pieces &= FULL_BOARD & u64::nth(mv.from);
+        *pieces |= u64::nth(mv.to);
 
         // TODO(implement castling info updates.)
         self.update_info();
@@ -219,12 +261,12 @@ impl Position {
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
             let mut move_set = piece_and_moves.moves;
-            let mut legal_move_set = bitboard::empty_board;
-            while move_set != empty_board {
-                let zeros = move_set.trailing_zeros();
+            let mut legal_move_set = EMPTY_BOARD;
+            while move_set != EMPTY_BOARD {
+                let zeros = move_set.trailing_zeros() as u8;
                 let bitb_move = BitboardMove {
                     from: *from_id,
-                    to: (zeros) as u8,
+                    to: zeros,
                 };
                 if !self.is_check_after_move(
                     &bitb_move,
@@ -233,13 +275,9 @@ impl Position {
                         color: self.player_to_move(),
                     },
                 ) {
-                    println!(
-                        "adding move as its not checks: from: {} to: {}",
-                        from_id, zeros
-                    );
-                    legal_move_set |= bitb!(zeros);
+                    legal_move_set |= u64::nth(zeros);
                 }
-                move_set ^= bitb!(zeros);
+                move_set ^= u64::nth(zeros);
             }
             result.insert(
                 *from_id,
@@ -255,17 +293,31 @@ impl Position {
     pub fn pseudolegal_continuations(&self) -> MovesMap {
         // Iterate over all of the pieces on the board.
         let mut result = MovesMap::new();
+        merge_moves_map(
+            PawnBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
+        merge_moves_map(
+            KnightBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
+        merge_moves_map(
+            BishopBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
+        merge_moves_map(
+            RookBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
+        merge_moves_map(
+            QueenBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
+        merge_moves_map(
+            KingBitboardMoveGenerator::generate_moves(&self),
+            &mut result,
+        );
 
-        let pieces = self.pieces_to_move();
-        println!("pieces_pawns: {}", pieces.pawns);
-        merge_moves_map(pawn::generate_moves(&self, pieces.pawns), &mut result);
-        merge_moves_map(knight::generate_moves(&self, pieces.knights), &mut result);
-        merge_moves_map(bishop::generate_moves(&self, pieces.bishops), &mut result);
-        merge_moves_map(rook::generate_moves(&self, pieces.rooks), &mut result);
-        merge_moves_map(queen::generate_moves(&self, pieces.queens), &mut result);
-        merge_moves_map(king::generate_moves(&self, pieces.king), &mut result);
-
-        println!("pseudolegal!");
         result
     }
 }

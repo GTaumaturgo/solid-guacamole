@@ -1,4 +1,4 @@
-import {numToRow, getSquareName} from "./common.js"
+import { numToRow, getSquareName } from "./common.js"
 
 class UciRequest {
     constructor(board, req_type) {
@@ -21,15 +21,36 @@ function EncodeBoard(board) {
 }
 
 
-export async function IssuePossibleMovesReq(board) {
+export async function IssuePossibleMovesReq(board, player_to_move) {
+    console.log("player:", player_to_move)
     let uci_req = {
+        p_to_move: player_to_move,
         board: EncodeBoard(board),
         req_type: "possible_moves",
         timeout: 3000,
     }
+    console.log('issuing UCI req:');
+    console.log(uci_req);
     let uci_response = await IssueUciReq(uci_req);
     console.log(uci_response);
     return uci_response.possible_moves;
+}
+
+
+export async function parsePossibleMoves(possibleMoves) {
+    let temp = await possibleMoves;
+    const moves = temp.split(',');
+    const moveMap = new Map();
+
+    for (const move of moves) {
+        const from = move.split(':')[0];
+        const to = move.split(':')[1];
+        if (!moveMap.has(from)) {
+            moveMap.set(from, []);
+        }
+        moveMap.get(from).push(to);
+    }
+    return moveMap;
 }
 
 async function IssueUciReq(uci_req) {
