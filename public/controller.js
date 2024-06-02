@@ -56,31 +56,32 @@ export class Controller {
          * @param {string} fromSquare The name of the square from which the piece is moving.
          * @param {string} toSquare The name of the square to which the piece is moving. */
 
-        const cur_position = this.getCurPosition();
-        console.log(cur_position);
-        let new_position = cur_position.copy();
-        if (debug) {
-            console.log(cur_position);
-        }
+
+
         let row_from = this.GetRowFromSquareName(fromSquare);
         let row_to = this.GetRowFromSquareName(toSquare);
         let col_from = this.GetColumnFromSquareName(fromSquare);
         let col_to = this.GetColumnFromSquareName(toSquare);
+        const cur_position = this.getCurPosition();
         let piece_as_str = cur_position.getPiece(row_from, col_from);
+
 
         this.undrawPieceAtSquare(row_from, col_from);
         // If there is other piece, undraw it (e.g.) a capture.
         if (cur_position.hasPieceAt(row_to, col_to)) {
             this.undrawPieceAtSquare(row_to, col_to);
         }
-
+        
+        let new_position = cur_position.copy_as_continuation();
         new_position.setPieceAsEmpty(row_from, col_from);
         new_position.setPiece(row_to, col_to, piece_as_str);
+        console.log(new_position.getPiece(row_from, col_from));
         console.log(new_position.getPiece(row_to, col_to));
         console.log('=====');
         this.board_state_manager.push_state(new_position);
+        // We need to draw after pushing the new position as it checks the position at the top of the stack.
         this.drawPieceAtSquareIfPresent(row_to, col_to);
-        this.flip_player_to_move()
+        this.flip_player_to_move();
     }
 
     flip_player_to_move() {
@@ -139,7 +140,7 @@ export class Controller {
          * @param {number} i The row index of the square.
          * @param {number} j The column index of the square. */
         var piece_div = document.getElementById(getSquareName(i, j) + PIECE_DIV_SUFFIX);
-        piece_div.setAttribute("class", "");
+        piece_div.setAttribute("class", "piece-container");
     }
 
     /** Undoes the last move that was made.*/

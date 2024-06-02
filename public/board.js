@@ -1,4 +1,4 @@
-import { WHITE_PLAYER } from "./common.js";
+import { WHITE_PLAYER, BLACK_PLAYER } from "./common.js";
 
 export class Board {
     #kEmpty = "."
@@ -47,7 +47,15 @@ export class Board {
         return this.movesMap != null;
     }
 
+    other_player(player) {
+        if (player == WHITE_PLAYER) return BLACK_PLAYER;
+        return WHITE_PLAYER
+    }
     copy() {
         return new Board(this.internal_state, this.moves_map, this.to_move);
+    }
+
+    copy_as_continuation() {
+        return new Board(this.internal_state, null, this.other_player(this.to_move));
     }
 }

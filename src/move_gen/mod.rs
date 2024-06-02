@@ -14,7 +14,7 @@ mod pawn_test;
 mod queen_test;
 mod rook_test;
 
-use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
+use crate::chess::bitboard::{BitArraySize, PlayerBitboard, SpecialMoveType};
 use crate::chess::position::Position;
 use crate::chess::{
     bitboard::{BitB64, BitboardMove},
@@ -31,7 +31,8 @@ use std::collections::HashMap;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PieceAndMoves {
     pub typpe: PieceType,
-    pub moves: BitB64,
+    pub moves: Vec<BitboardMove>,
+    pub sp_move_type: SpecialMoveType,
 }
 pub type MovesMap = HashMap<u8, PieceAndMoves>;
 
@@ -58,7 +59,12 @@ pub fn try_generate_move_in_direction(
     is_direction_blocked: &mut bool,
     cur_bishop_moves: &mut u64,
 ) -> () {
-    if !(*is_direction_blocked) && is_inside_board(sq_id) {
+    if !(*is_direction_blocked)
+        && is_inside_board(
+            internal::get_i_from_sq_id(sq_id),
+            internal::get_j_from_sq_id(sq_id),
+        )
+    {
         let sq_in_direction = u64::nth(sq_id as u8);
         if intersect(sq_in_direction, ally_pieces.all_pieces()) {
             *is_direction_blocked = true;

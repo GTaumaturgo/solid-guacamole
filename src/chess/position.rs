@@ -209,8 +209,8 @@ impl Position {
 
     pub fn enemy_pieces(&self) -> &PlayerBitboard {
         match self.player_to_move() {
-            PlayerColor::White => &self.white,
-            PlayerColor::Black => &self.black,
+            PlayerColor::White => &self.black,
+            PlayerColor::Black => &self.white,
         }
     }
 
@@ -291,32 +291,20 @@ impl Position {
     }
 
     pub fn pseudolegal_continuations(&self) -> MovesMap {
-        // Iterate over all of the pieces on the board.
         let mut result = MovesMap::new();
-        merge_moves_map(
-            PawnBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
-        merge_moves_map(
-            KnightBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
-        merge_moves_map(
-            BishopBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
-        merge_moves_map(
-            RookBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
-        merge_moves_map(
-            QueenBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
-        merge_moves_map(
-            KingBitboardMoveGenerator::generate_moves(&self),
-            &mut result,
-        );
+
+        let piece_generators = vec![
+            PawnBitboardMoveGenerator::generate_moves,
+            KnightBitboardMoveGenerator::generate_moves,
+            BishopBitboardMoveGenerator::generate_moves,
+            RookBitboardMoveGenerator::generate_moves,
+            QueenBitboardMoveGenerator::generate_moves,
+            KingBitboardMoveGenerator::generate_moves,
+        ];
+
+        for generate_moves in piece_generators.iter() {
+            merge_moves_map(generate_moves(&self), &mut result);
+        }
 
         result
     }

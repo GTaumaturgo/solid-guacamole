@@ -15,3 +15,14 @@ fn test_initial_pos() {
         RookBitboardMoveGenerator::generate_moves(&pos)
     );
 }
+
+#[test]
+fn test_h4_h5() {
+    // Initial position has no moves for bishops.
+    let pos = test_utils::get_initial_position();
+    
+    assert_eq!(
+        HashMap::new(),
+        RookBitboardMoveGenerator::generate_moves(&pos)
+    );
+}

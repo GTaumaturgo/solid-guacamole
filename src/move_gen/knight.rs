@@ -1,4 +1,4 @@
-use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
+use super::{internal::bounded, BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::PlayerColor;
 use crate::chess::{
     bitboard::BitArraySize,
@@ -19,29 +19,22 @@ impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
         let pieces_to_move = pos.pieces_to_move();
         let mut knight_set = pieces_to_move.knights;
         while knight_set != 0 {
-            let id = knight_set.trailing_zeros() as i32;
+            let id = knight_set.trailing_zeros() as i8;
             let cur_knight = u64::nth(id as u8);
             knight_set ^= cur_knight;
             let mut cur_knight_moves = EMPTY_BOARD;
 
-            for i in [-2, -1, 1, 2].iter() {
-                for j in [-2, -1, 1, 2].iter() {
+            for i in [-2i8, -1i8, 1i8, 2i8].iter() {
+                for j in [-2i8, -1i8, 1i8, 2i8].iter() {
                     if i * i + j * j != 5 {
                         continue;
                     }
-                    if (id >> 3) + i < 0 {
+                    let i_pos = (id >> 3) + i;
+                    let j_pos = (id % 8) + j;
+                    if !bounded(i_pos, 0, 7) || !bounded(j_pos, 0, 7) {
                         continue;
                     }
-                    if (id >> 3) + i >= 8 {
-                        continue;
-                    }
-                    if (id % 8) + j < 0 {
-                        continue;
-                    }
-                    if (id % 8) + j >= 8 {
-                        continue;
-                    }
-                    let to = (id + i * 8 + j) as u8;
+                    let to = (i_pos * 8 + j_pos) as u8;
                     cur_knight_moves |= u64::nth(to);
                 }
             }

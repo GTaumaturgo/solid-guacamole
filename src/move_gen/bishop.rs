@@ -1,4 +1,6 @@
-use super::internal::{intersect, is_inside_board, try_generate_move_in_direction};
+use super::internal::{
+    get_ij_from_sq_id, intersect, is_inside_board, try_generate_move_in_direction,
+};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
 use crate::chess::position::Position;
@@ -13,6 +15,7 @@ pub fn generate_moves_as(pos: &Position, mut piece_set: BitB64) -> MovesMap {
     let mut result = HashMap::new();
     while piece_set != 0 {
         let id = piece_set.trailing_zeros() as i8;
+        let (i0, j0) = get_ij_from_sq_id(id);
         let cur_bishop = u64::nth(id as u8);
         piece_set ^= cur_bishop; // Remove bishop from the set.
         let mut cur_bishop_moves = EMPTY_BOARD;
@@ -28,11 +31,11 @@ pub fn generate_moves_as(pos: &Position, mut piece_set: BitB64) -> MovesMap {
             false, // downright
         ];
         for i in 1..7 {
-            let id_upleft = 8 * i + id - i;
-            let id_upright = 8 * i + id + i;
-            let id_downleft = (id - 8 * i) - i;
-            let id_downright = (id - 8 * i) + i;
-            let all_dir_ids = vec![id_upleft, id_upright, id_downleft, id_downright];
+            let ij_upleft = (i0 + i, j0 - i);
+            let ij_upright = (i0 + i, j0 + i);
+            let ij_downleft = (i0 - i, j0 - i);
+            let ij_downright = (i0 - i, j0 + i);
+            let all_dir_ids = vec![ij_upleft, ij_upright, ij_downleft, ij_downright];
             for (dir_sq_id, mut dir_blocked) in
                 all_dir_ids.iter().zip(all_diagonals_blockedness.iter_mut())
             {
