@@ -63,13 +63,11 @@ pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
     let continuations_map = position.legal_continuations();
     let mut possible_moves: String = "".to_owned();
     for (sq_id, piece_n_moves) in continuations_map.iter() {
-        let mut cur_piece_moves = piece_n_moves.moves;
-        while cur_piece_moves != 0 {
-            let zeros = cur_piece_moves.trailing_zeros() as u8;
-            println!("{}:{}", sq_id_to_name(*sq_id), sq_id_to_name(zeros));
+        let cur_piece_moves = &piece_n_moves.moves;
+        for mv in piece_n_moves.moves.iter() {
+            println!("{}:{}", sq_id_to_name(*sq_id), sq_id_to_name(mv.to));
             possible_moves +=
-                format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(zeros)).as_ref();
-            cur_piece_moves ^= u64::nth(zeros);
+                format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(mv.to)).as_ref();
         }
     }
 

@@ -2,7 +2,10 @@ use rocket::futures::io::ReuniteError;
 
 use super::{internal::bounded, BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::position::{self, Position};
-use crate::chess::{bitboard::BitArraySize, PlayerColor};
+use crate::chess::{
+    bitboard::{BitArraySize, SpecialMoveType},
+    PlayerColor,
+};
 use crate::chess::{
     bitboard::{BitB64, BitboardMove, EMPTY_BOARD, FULL_BOARD},
     PieceType,
@@ -38,12 +41,14 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
 
         // Can't move to squares that contain our pieces.
         cur_king_moves &= u64::compl(ally_pieces.all_pieces());
-        if cur_king_moves != EMPTY_BOARD {
+
+        let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_king_moves);
+        if resulting_moves.len() > 0 {
             result.insert(
                 id as u8,
                 PieceAndMoves {
                     typpe: PieceType::King,
-                    moves: cur_king_moves,
+                    moves: resulting_moves,
                 },
             );
         };

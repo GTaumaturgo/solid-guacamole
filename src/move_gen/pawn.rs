@@ -1,3 +1,4 @@
+use super::internal;
 use super::internal::{get_ij_from_sq_id, intersect};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
@@ -98,12 +99,13 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
             if j != rightmost_col && intersect(sq_capture_right, pos.enemy_pieces().all_pieces()) {
                 cur_pawn_moves |= sq_capture_right;
             }
-            if cur_pawn_moves != EMPTY_BOARD {
+            let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
+            if resulting_moves.len() > 0 {
                 result.insert(
                     id as u8,
                     PieceAndMoves {
                         typpe: PieceType::Pawn,
-                        moves: cur_pawn_moves,
+                        moves: resulting_moves,
                     },
                 );
             }

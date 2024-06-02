@@ -1,3 +1,4 @@
+use super::internal;
 use super::internal::{get_ij_from_sq_id, try_generate_move_in_direction};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD};
@@ -50,12 +51,13 @@ pub fn generate_moves_as(pos: &Position, mut piece_set: BitB64) -> MovesMap {
                 break;
             }
         }
-        if cur_rook_moves != EMPTY_BOARD {
+        let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_rook_moves);
+        if resulting_moves.len() > 0 {
             result.insert(
                 id as u8,
                 PieceAndMoves {
                     typpe: PieceType::Rook,
-                    moves: cur_rook_moves,
+                    moves: resulting_moves,
                 },
             );
         };

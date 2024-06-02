@@ -28,11 +28,10 @@ use std::collections::HashMap;
 
 // Public exports below.
 // internal utilities on internal file
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PieceAndMoves {
     pub typpe: PieceType,
     pub moves: Vec<BitboardMove>,
-    pub sp_move_type: SpecialMoveType,
 }
 pub type MovesMap = HashMap<u8, PieceAndMoves>;
 
@@ -43,11 +42,14 @@ pub trait BitboardMoveGenerator {
 // Merges two move maps. The second one is borrowed and freed, the first one lives.
 pub fn merge_moves_map(input: MovesMap, output: &mut MovesMap) {
     for (sq_id, input_pc_and_moves) in input.iter() {
+        // Maybe extend an existing entry, useful for queen.
         if let Some(output_pc_and_moves) = output.get_mut(sq_id) {
-            output_pc_and_moves.moves |= input_pc_and_moves.moves;
+            for mv in input_pc_and_moves.moves.iter() {
+                output_pc_and_moves.moves.push(*mv);
+            }
             continue;
         }
-        output.insert(*sq_id, *input_pc_and_moves);
+        output.insert(*sq_id, input_pc_and_moves.clone());
     }
     // println!("sucessfully merged move map!");
 }

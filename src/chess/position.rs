@@ -260,30 +260,29 @@ impl Position {
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
-            let mut move_set = piece_and_moves.moves;
-            let mut legal_move_set = EMPTY_BOARD;
-            while move_set != EMPTY_BOARD {
-                let zeros = move_set.trailing_zeros() as u8;
-                let bitb_move = BitboardMove {
-                    from: *from_id,
-                    to: zeros,
-                };
-                if !self.is_check_after_move(
-                    &bitb_move,
+            let mut moves_list = &piece_and_moves.moves;
+            // Only keep leag moves in the new vector for each entry.
+            let mut legal_moves = Vec::new();
+            for mv in moves_list.iter() {
+                if self.is_check_after_move(
+                    &mv,
                     ChessPiece {
                         typpe: typpe,
                         color: self.player_to_move(),
                     },
                 ) {
-                    legal_move_set |= u64::nth(zeros);
+                    continue;
                 }
-                move_set ^= u64::nth(zeros);
+                legal_moves.push(*mv);
+            }
+            if legal_moves.len() == 0 {
+                continue;
             }
             result.insert(
                 *from_id,
                 PieceAndMoves {
                     typpe: typpe,
-                    moves: legal_move_set,
+                    moves: legal_moves,
                 },
             );
         }

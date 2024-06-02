@@ -1,3 +1,4 @@
+use super::internal;
 use super::internal::{
     get_ij_from_sq_id, intersect, is_inside_board, try_generate_move_in_direction,
 };
@@ -48,16 +49,18 @@ pub fn generate_moves_as(pos: &Position, mut piece_set: BitB64) -> MovesMap {
                 );
             }
         }
-        if cur_bishop_moves != EMPTY_BOARD {
+        let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_bishop_moves);
+        if resulting_moves.len() > 0 {
             result.insert(
                 id as u8,
                 PieceAndMoves {
                     typpe: PieceType::Bishop,
-                    moves: cur_bishop_moves,
+                    moves: resulting_moves,
                 },
             );
         };
     }
+
     result
 }
 

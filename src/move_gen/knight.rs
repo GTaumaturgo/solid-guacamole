@@ -1,3 +1,4 @@
+use super::internal;
 use super::{internal::bounded, BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::PlayerColor;
 use crate::chess::{
@@ -40,13 +41,17 @@ impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
             }
             // Can't move to squares that contain our pieces.
             cur_knight_moves &= u64::compl(pieces_to_move.all_pieces());
-            result.insert(
-                id as u8,
-                PieceAndMoves {
-                    typpe: PieceType::Knight,
-                    moves: cur_knight_moves,
-                },
-            );
+
+            let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_knight_moves);
+            if resulting_moves.len() > 0 {
+                result.insert(
+                    id as u8,
+                    PieceAndMoves {
+                        typpe: PieceType::King,
+                        moves: resulting_moves,
+                    },
+                );
+            };
         }
         result
     }

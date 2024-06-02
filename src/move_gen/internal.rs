@@ -1,6 +1,6 @@
 use super::MovesMap;
 use crate::chess::{
-    bitboard::{BitArraySize, BitB64, PlayerBitboard},
+    bitboard::{BitArraySize, BitB64, BitboardMove, PlayerBitboard, SpecialMoveType, EMPTY_BOARD},
     position::Position,
 };
 
@@ -30,6 +30,20 @@ pub fn is_inside_board(i: i8, j: i8) -> bool {
 
 pub fn intersect(bitb_a: BitB64, bitb_b: BitB64) -> bool {
     bitb_a & bitb_b != 0
+}
+
+pub fn bitb64_to_moves_list(orig_sq_id: u8, mut encoded_moves: BitB64) -> Vec<BitboardMove> {
+    let mut result = Vec::new();
+    while encoded_moves != EMPTY_BOARD {
+        let cur_move_sq_id = encoded_moves.trailing_zeros() as u8;
+        encoded_moves ^= u64::nth(cur_move_sq_id);
+        result.push(BitboardMove {
+            from: orig_sq_id,
+            to: cur_move_sq_id,
+            sp_move_type: SpecialMoveType::RegularMove,
+        });
+    }
+    result
 }
 
 // Useful for bishop and rook.
