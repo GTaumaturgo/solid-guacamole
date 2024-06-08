@@ -1,6 +1,7 @@
 use rocket::futures::io::ReuniteError;
 
 use super::{internal::bounded, BitboardMoveGenerator, MovesMap, PieceAndMoves};
+use crate::chess::bitboard;
 use crate::chess::position::{self, Position};
 use crate::chess::{
     bitboard::{BitArraySize, SpecialMoveType},
@@ -15,11 +16,50 @@ use std::collections::HashMap;
 
 pub struct KingBitboardMoveGenerator {}
 
+fn get_long_castle_sq_id(pos: &Position) -> u8 {
+    match pos.player_to_move() {
+        PlayerColor::White => bitboard::G1,
+        PlayerColor::Black => bitboard::G8,
+    }
+}
+
+fn get_short_castle_sq_id(pos: &Position) -> u8 {
+    match pos.player_to_move() {
+        PlayerColor::White => bitboard::B1,
+        PlayerColor::Black => bitboard::B8,
+    }
+}
+
+fn short_castle_valid(pos: &Position) -> bool {
+    if !pos
+        .position_info
+        .short_castling_allowed(pos.player_to_move())
+    {
+        return false;
+    }
+
+    false
+}
+
+fn long_castle_valid(pos: &Position) -> bool {
+    if !pos
+        .position_info
+        .long_castling_allowed(pos.player_to_move())
+    {
+        return false;
+    }
+    false
+}
+
 impl BitboardMoveGenerator for KingBitboardMoveGenerator {
-    fn generate_moves(pos: &Position) -> MovesMap {
+    fn get_attacking_moves(pos: &Position) -> MovesMap {
         let mut result = HashMap::new();
         let king: u64 = pos.pieces_to_move().king;
         let id: i8 = king.trailing_zeros() as i8;
+        if !(bounded(id, 0, 63)) {
+            println!("Attemped to generate moves for king but there is no king!");
+            return result;
+        }
         let (i0, j0) = get_ij_from_sq_id(id);
 
         let mut cur_king_moves = EMPTY_BOARD;
@@ -41,17 +81,43 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
 
         // Can't move to squares that contain our pieces.
         cur_king_moves &= u64::compl(ally_pieces.all_pieces());
-
-        let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_king_moves);
-        if resulting_moves.len() > 0 {
+        let moves = internal::bitb64_to_moves_list(id as u8, cur_king_moves);
+        if !moves.is_empty() {
             result.insert(
                 id as u8,
                 PieceAndMoves {
                     typpe: PieceType::King,
-                    moves: resulting_moves,
+                    moves,
                 },
             );
-        };
+        }
+        result
+    }
+
+    fn generate_moves(pos: &Position) -> MovesMap {
+        let king: u64 = pos.pieces_to_move().king;
+        let id = king.trailing_zeros() as u8;
+
+        let mut result = Self::get_attacking_moves(pos);
+
+        if short_castle_valid(pos) {
+            if let Some(x) = result.get_mut(&id) {
+                x.moves.push(BitboardMove {
+                    from: id,
+                    to: get_short_castle_sq_id(pos),
+                    sp_move_type: SpecialMoveType::ShortCastle,
+                });
+            }
+        }
+        if long_castle_valid(pos) {
+            if let Some(x) = result.get_mut(&id) {
+                x.moves.push(BitboardMove {
+                    from: id,
+                    to: get_short_castle_sq_id(pos),
+                    sp_move_type: SpecialMoveType::LongCastle,
+                });
+            }
+        }
         result
     }
 }

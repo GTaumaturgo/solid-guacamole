@@ -1,6 +1,6 @@
 use super::internal;
 use super::{internal::bounded, BitboardMoveGenerator, MovesMap, PieceAndMoves};
-use crate::chess::PlayerColor;
+use crate::chess::{bitboard, PlayerColor};
 use crate::chess::{
     bitboard::BitArraySize,
     position::{self, Position},
@@ -13,18 +13,16 @@ use crate::chess::{
 use std::collections::HashMap;
 
 pub struct KnightBitboardMoveGenerator {}
-
 impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
-    fn generate_moves(pos: &Position) -> MovesMap {
+    fn get_attacking_moves(pos: &Position) -> MovesMap {
         let mut result = HashMap::new();
         let pieces_to_move = pos.pieces_to_move();
-        let mut knight_set = pieces_to_move.knights;
-        while knight_set != 0 {
-            let id = knight_set.trailing_zeros() as i8;
+        let mut piece_set = pieces_to_move.knights;
+        while piece_set != 0 {
+            let id = piece_set.trailing_zeros() as i8;
             let cur_knight = u64::nth(id as u8);
-            knight_set ^= cur_knight;
+            piece_set ^= cur_knight;
             let mut cur_knight_moves = EMPTY_BOARD;
-
             for i in [-2i8, -1i8, 1i8, 2i8].iter() {
                 for j in [-2i8, -1i8, 1i8, 2i8].iter() {
                     if i * i + j * j != 5 {
@@ -39,20 +37,23 @@ impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
                     cur_knight_moves |= u64::nth(to);
                 }
             }
-            // Can't move to squares that contain our pieces.
             cur_knight_moves &= u64::compl(pieces_to_move.all_pieces());
-
-            let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_knight_moves);
-            if resulting_moves.len() > 0 {
+            let resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_knight_moves);
+            if resulting_moves.len() != 0 {
                 result.insert(
                     id as u8,
                     PieceAndMoves {
-                        typpe: PieceType::King,
+                        typpe: PieceType::Knight,
                         moves: resulting_moves,
                     },
                 );
-            };
+            }
         }
         result
+        // Can't move to squares that contain our pieces.
+    }
+
+    fn generate_moves(pos: &Position) -> MovesMap {
+        Self::get_attacking_moves(pos)
     }
 }

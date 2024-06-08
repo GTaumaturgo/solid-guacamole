@@ -1,4 +1,6 @@
-use super::internal;
+use rocket::catcher::Result;
+
+use super::internal::{self, bitb64_to_moves_list};
 use super::internal::{get_ij_from_sq_id, intersect};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
@@ -10,15 +12,64 @@ use crate::chess::{
 };
 use std::collections::HashMap;
 
-// fn try_capture_left(ally: &PlayerBitboard, )
-
 pub struct PawnBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
+    fn get_attacking_moves(pos: &Position) -> MovesMap {
+        let mut result = HashMap::new();
+        let mut pawn_set = pos.pieces_to_move().pawns;
+        while pawn_set != 0 {
+            let id = pawn_set.trailing_zeros() as i8;
+            let cur_pawn = u64::nth(id as u8);
+            pawn_set ^= cur_pawn;
+            let (_, j) = get_ij_from_sq_id(id);
+            // println!("Generating attack for pawn at i: {}, j: {}", i, j);
+            let mut cur_pawn_moves = EMPTY_BOARD;
+            let player_color = pos.player_to_move();
+
+            let pawn_move_direction: i8 = match player_color {
+                PlayerColor::Black => -1,
+                PlayerColor::White => 1,
+            };
+
+            let leftmost_col = match player_color {
+                PlayerColor::Black => 7,
+                PlayerColor::White => 0,
+            };
+
+            let rightmost_col = match player_color {
+                PlayerColor::Black => 0,
+                PlayerColor::White => 7,
+            };
+
+            let advance_sq_id = (id + pawn_move_direction * 8) as i8;
+
+            let sq_capture_left = u64::nth((advance_sq_id - pawn_move_direction) as u8);
+            if j != leftmost_col && intersect(sq_capture_left, pos.enemy_pieces().all_pieces()) {
+                cur_pawn_moves |= sq_capture_left;
+            }
+            let sq_capture_right = u64::nth((advance_sq_id + pawn_move_direction) as u8);
+            if j != rightmost_col && intersect(sq_capture_right, pos.enemy_pieces().all_pieces()) {
+                cur_pawn_moves |= sq_capture_right;
+            }
+            let resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
+            if resulting_moves.len() != 0 {
+                result.insert(
+                    id as u8,
+                    PieceAndMoves {
+                        typpe: PieceType::Pawn,
+                        moves: resulting_moves,
+                    },
+                );
+            }
+        }
+        result
+    }
+
     fn generate_moves(pos: &Position) -> MovesMap {
         let mut result = HashMap::new();
-        let pieces_to_move = pos.pieces_to_move();
-        let mut pawn_set = pieces_to_move.pawns;
+        super::merge_moves_map(Self::get_attacking_moves(pos), &mut result);
+        let mut pawn_set = pos.pieces_to_move().pawns;
         while pawn_set != 0 {
             let id = pawn_set.trailing_zeros() as i8;
             let cur_pawn = u64::nth(id as u8);
@@ -64,12 +115,7 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
             );
             let all_pieces = pos.enemy_pieces().all_pieces() | pos.pieces_to_move().all_pieces();
             let piece_in_front = intersect(advance_square, all_pieces);
-            let (adv_i, adv_j) = get_ij_from_sq_id(advance_sq_id as i8);
-            println!("advance coord: {} {}", adv_i, adv_j);
-            println!("advance_square: {}", advance_square);
-            println!("all pieces: {}", all_pieces);
-            println!("piece in front: {}", piece_in_front);
-            println!("checking advance");
+
             if !piece_in_front {
                 cur_pawn_moves |= advance_square;
                 let double_adv_sq = u64::nth((double_advance_offset + j) as u8);
@@ -77,8 +123,6 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
                     cur_pawn_moves |= double_adv_sq;
                 }
             }
-            // Check capture to both sides.
-            println!("checking capture left");
             let sq_capture_left = u64::nth((advance_sq_id - pawn_move_direction) as u8);
             println!("{}", advance_sq_id - pawn_move_direction);
             println!("{}", sq_capture_left);
@@ -99,16 +143,17 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
             if j != rightmost_col && intersect(sq_capture_right, pos.enemy_pieces().all_pieces()) {
                 cur_pawn_moves |= sq_capture_right;
             }
-            let mut resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
-            if resulting_moves.len() > 0 {
-                result.insert(
-                    id as u8,
-                    PieceAndMoves {
-                        typpe: PieceType::Pawn,
-                        moves: resulting_moves,
-                    },
-                );
+            let resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
+            if resulting_moves.len() == 0 {
+                return result;
             }
+            result.insert(
+                id as u8,
+                PieceAndMoves {
+                    typpe: PieceType::Pawn,
+                    moves: resulting_moves,
+                },
+            );
         }
         result
     }

@@ -36,7 +36,9 @@ pub struct PieceAndMoves {
 pub type MovesMap = HashMap<u8, PieceAndMoves>;
 
 pub trait BitboardMoveGenerator {
-    fn generate_moves(position: &Position) -> MovesMap;
+    fn generate_moves(pos: &Position) -> MovesMap;
+
+    fn get_attacking_moves(pos: &Position) -> MovesMap;
 }
 
 // Merges two move maps. The second one is borrowed and freed, the first one lives.
