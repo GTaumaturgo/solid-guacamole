@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 pub struct RookBitboardMoveGenerator {}
 
-fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
+pub fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
     let (i0, j0) = get_ij_from_sq_id(id as i8);
 
     let enemy_pieces = pos.enemy_pieces();
@@ -42,6 +42,17 @@ fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
         }
     }
     cur_rook_moves
+}
+
+fn compute_rook_attacking_moves(pos: &Position) -> BitB64 {
+    let mut result = EMPTY_BOARD;
+    let mut piece_set = pos.pieces_to_move().rooks;
+    while piece_set != 0 {
+        let id = piece_set.trailing_zeros() as u8;
+        result |= compute_single_rook_attacking_moves(pos, id);
+        piece_set ^= u64::nth(id);
+    }
+    result
 }
 
 pub fn get_attacking_moves_as_rook(pos: &Position, real_type: PieceType) -> MovesMap {

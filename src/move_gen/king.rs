@@ -50,37 +50,41 @@ fn long_castle_valid(pos: &Position) -> bool {
     false
 }
 
+pub fn compute_king_attacking_moves(pos: &Position) -> BitB64 {
+    let king: u64 = pos.pieces_to_move().king;
+    let id: i8 = king.trailing_zeros() as i8;
+
+    let mut result = EMPTY_BOARD;
+    let ally_pieces = pos.pieces_to_move();
+    let (i0, j0) = get_ij_from_sq_id(id);
+    for i in [-1i8, 0i8, 1i8] {
+        for j in [-1i8, 0i8, 1i8] {
+            if i == 0 && j == 0 {
+                continue;
+            }
+            let (i1, j1) = (i0 + i, j0 + j);
+            if !internal::is_inside_board(i1, j1) {
+                continue;
+            }
+            result |= u64::nth(get_sq_id_from_ij(i1, j1) as u8);
+        }
+    }
+    result &= u64::compl(ally_pieces.all_pieces());
+    result
+}
+
 impl BitboardMoveGenerator for KingBitboardMoveGenerator {
     fn get_attacking_moves(pos: &Position) -> MovesMap {
-        let mut result = HashMap::new();
         let king: u64 = pos.pieces_to_move().king;
-        let id: i8 = king.trailing_zeros() as i8;
-        if !(bounded(id, 0, 63)) {
+        if king == EMPTY_BOARD {
             println!("Attemped to generate moves for king but there is no king!");
-            return result;
+            return HashMap::new();
         }
-        let (i0, j0) = get_ij_from_sq_id(id);
 
-        let mut cur_king_moves = EMPTY_BOARD;
+        let mut result = HashMap::new();
+        let id: i8 = king.trailing_zeros() as i8;
 
-        let ally_pieces = pos.pieces_to_move();
-        for i in [-1i8, 0i8, 1i8] {
-            for j in [-1i8, 0i8, 1i8] {
-                if i == 0 && j == 0 {
-                    continue;
-                }
-                let (i1, j1) = (i0 + i, j0 + j);
-                if !internal::is_inside_board(i1, j1) {
-                    continue;
-                }
-                cur_king_moves |= u64::nth(get_sq_id_from_ij(i1, j1) as u8);
-            }
-        }
-        println!("cur king moves: {}", cur_king_moves);
-
-        // Can't move to squares that contain our pieces.
-        cur_king_moves &= u64::compl(ally_pieces.all_pieces());
-        let moves = internal::bitb64_to_moves_list(id as u8, cur_king_moves);
+        let moves = internal::bitb64_to_moves_list(id as u8, compute_king_attacking_moves(pos));
         if !moves.is_empty() {
             result.insert(
                 id as u8,

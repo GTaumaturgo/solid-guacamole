@@ -44,16 +44,14 @@ pub trait BitboardMoveGenerator {
 // Merges two move maps. The second one is borrowed and freed, the first one lives.
 pub fn merge_moves_map(input: MovesMap, output: &mut MovesMap) {
     for (sq_id, input_pc_and_moves) in input.iter() {
-        // Maybe extend an existing entry, useful for queen.
+        // Maybe extend an existing entry.
         if let Some(output_pc_and_moves) = output.get_mut(sq_id) {
-            for mv in input_pc_and_moves.moves.iter() {
-                output_pc_and_moves.moves.push(*mv);
-            }
-            continue;
+            output_pc_and_moves
+                .moves
+                .extend(input_pc_and_moves.moves.iter());
         }
         output.insert(*sq_id, input_pc_and_moves.clone());
     }
-    // println!("sucessfully merged move map!");
 }
 
 pub fn try_generate_move_in_direction(

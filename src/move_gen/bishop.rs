@@ -12,9 +12,8 @@ use crate::chess::{
 
 use std::collections::HashMap;
 
-fn compute_single_bishop_attacking_moves(pos: &Position, id: u8) -> BitB64 {
-    let ally_pieces = pos.pieces_to_move();
-    let enemy_pieces = pos.enemy_pieces();
+pub fn compute_single_bishop_attacking_moves(pos: &Position, id: u8) -> BitB64 {
+    let (ally_pieces, enemy_pieces) = (pos.pieces_to_move(), pos.enemy_pieces());
 
     let mut cur_bishop_moves = EMPTY_BOARD;
     let mut dir_blockedness = vec![
@@ -50,6 +49,17 @@ fn compute_single_bishop_attacking_moves(pos: &Position, id: u8) -> BitB64 {
         }
     }
     cur_bishop_moves
+}
+
+pub fn compute_bishop_attacking_moves(pos: &Position) -> BitB64 {
+    let mut result = EMPTY_BOARD;
+    let mut piece_set = pos.pieces_to_move().bishops;
+    while piece_set != EMPTY_BOARD {
+        let id = piece_set.trailing_zeros() as u8;
+        result |= compute_single_bishop_attacking_moves(pos, id);
+        piece_set ^= u64::nth(id);
+    }
+    result
 }
 
 pub fn get_attacking_moves_as_bishop(pos: &Position, real_type: PieceType) -> MovesMap {
