@@ -37,7 +37,6 @@ fn short_castle_valid(pos: &Position) -> bool {
     {
         return false;
     }
-
     false
 }
 

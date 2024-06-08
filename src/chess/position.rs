@@ -254,6 +254,8 @@ impl Position {
         return is_check;
     }
 
+    // pub fn get_
+
     pub fn legal_continuations(&mut self) -> MovesMap {
         let possible_moves_map = self.pseudolegal_continuations();
         let mut result = MovesMap::new();

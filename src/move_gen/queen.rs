@@ -11,9 +11,9 @@ pub struct QueenBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
     fn get_attacking_moves(pos: &Position) -> MovesMap {
-        let mut result = bishop::get_attacking_moves_as(pos, PieceType::Queen);
+        let mut result = bishop::get_attacking_moves_as_bishop(pos, PieceType::Queen);
         super::merge_moves_map(
-            bishop::get_attacking_moves_as(pos, PieceType::Queen),
+            rook::get_attacking_moves_as_rook(pos, PieceType::Queen),
             &mut result,
         );
         result
@@ -22,10 +22,13 @@ impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
     fn generate_moves(pos: &Position) -> MovesMap {
         let mut result = MovesMap::new();
         super::merge_moves_map(
-            bishop::generate_moves_as(pos, PieceType::Queen),
+            bishop::generate_moves_as_bishop(pos, PieceType::Queen),
             &mut result,
         );
-        super::merge_moves_map(rook::generate_moves_as(pos, PieceType::Queen), &mut result);
+        super::merge_moves_map(
+            rook::generate_moves_as_rook(pos, PieceType::Queen),
+            &mut result,
+        );
         result
     }
 }

@@ -10,68 +10,69 @@ use std::collections::HashMap;
 
 pub struct RookBitboardMoveGenerator {}
 
-pub fn get_attacking_moves_as(pos: &Position, real_type: PieceType) -> MovesMap {
+fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
+    let (i0, j0) = get_ij_from_sq_id(id as i8);
+
+    let enemy_pieces = pos.enemy_pieces();
+    let ally_pieces = pos.pieces_to_move();
+    let mut cur_rook_moves = EMPTY_BOARD;
+    let mut dir_blockedness = vec![
+        false, // up
+        false, // down
+        false, // right
+        false, // left
+    ];
+    // Try all possible distances (1..7 in all four diagonals):
+    for i in 1..7 {
+        // up, down, right, left
+        let all_dir_ids = vec![(i0 + i, j0), (i0 - i, j0), (i0, j0 + i), (i0, j0 - i)];
+        let mut should_keep_trying = false;
+        for (dir_sq_id, mut dir_blocked) in all_dir_ids.iter().zip(dir_blockedness.iter_mut()) {
+            try_generate_move_in_direction(
+                *dir_sq_id,
+                ally_pieces,
+                enemy_pieces,
+                &mut dir_blocked,
+                &mut cur_rook_moves,
+            );
+            should_keep_trying |= !*dir_blocked;
+        }
+        if !should_keep_trying {
+            break;
+        }
+    }
+    cur_rook_moves
+}
+
+pub fn get_attacking_moves_as_rook(pos: &Position, real_type: PieceType) -> MovesMap {
     let mut result = HashMap::new();
     let mut piece_set = *pos.pieces_to_move().pieces(real_type);
     while piece_set != 0 {
-        let id = piece_set.trailing_zeros() as i8;
-        let (i0, j0) = get_ij_from_sq_id(id);
-
-        let enemy_pieces = pos.enemy_pieces();
-        let ally_pieces = pos.pieces_to_move();
-        let cur_rook = u64::nth(id as u8);
-        piece_set ^= cur_rook;
-        let mut cur_rook_moves = EMPTY_BOARD;
-        let mut all_dirs_blockedness = vec![
-            false, // up
-            false, // down
-            false, // right
-            false, // left
-        ];
-        // Try all possible distances (1..7 in all four diagonals):
-        for i in 1..7 {
-            // up, down, right, left
-            let all_dir_ids = vec![(i0 + i, j0), (i0 - i, j0), (i0, j0 + i), (i0, j0 - i)];
-            let mut any_non_blocked = false;
-            for (dir_sq_id, mut dir_blocked) in
-                all_dir_ids.iter().zip(all_dirs_blockedness.iter_mut())
-            {
-                try_generate_move_in_direction(
-                    *dir_sq_id,
-                    ally_pieces,
-                    enemy_pieces,
-                    &mut dir_blocked,
-                    &mut cur_rook_moves,
-                );
-                any_non_blocked |= !*dir_blocked;
-            }
-            if !any_non_blocked {
-                break;
-            }
-        }
-        let moves = bitb64_to_moves_list(id as u8, cur_rook_moves);
+        let id = piece_set.trailing_zeros() as u8;
+        let moves = compute_single_rook_attacking_moves(pos, id);
         result.insert(
-            id as u8,
+            id,
             PieceAndMoves {
-                typpe: PieceType::Bishop,
-                moves: moves,
+                typpe: real_type,
+                moves: bitb64_to_moves_list(id, moves),
             },
         );
+        piece_set ^= u64::nth(id);
     }
     result
 }
 
-pub fn generate_moves_as(pos: &Position, real_type: PieceType) -> MovesMap {
+pub fn generate_moves_as_rook(pos: &Position, real_type: PieceType) -> MovesMap {
     // Rook atatacking moves are all moves it has
-    get_attacking_moves_as(pos, real_type)
+    get_attacking_moves_as_rook(pos, real_type)
 }
 
 impl BitboardMoveGenerator for RookBitboardMoveGenerator {
     fn get_attacking_moves(pos: &Position) -> MovesMap {
-        get_attacking_moves_as(pos, PieceType::Rook)
+        get_attacking_moves_as_rook(pos, PieceType::Rook)
     }
 
     fn generate_moves(pos: &Position) -> MovesMap {
-        generate_moves_as(pos, PieceType::Rook)
+        generate_moves_as_rook(pos, PieceType::Rook)
     }
 }
