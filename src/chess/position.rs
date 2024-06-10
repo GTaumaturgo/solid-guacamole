@@ -10,6 +10,7 @@ use crate::move_gen::{
     queen::QueenBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
     MovesMap, PieceAndMoves,
 };
+use crate::move_gen::{MoveGenOpts, MoveGenPerspective};
 use crate::UciRequest;
 
 enum PositionInfoMetadataBits {
@@ -60,7 +61,21 @@ impl PositionInfo {
         // Flip bit 0 and 1. 3 = 1 + 2
         self.metadata ^= u8::nth(PositionInfoMetadataBits::PlayerToMove as u8);
     }
+    pub fn enemy_player(&self) -> PlayerColor {
+        if Self::white_to_move(&self) {
+            PlayerColor::Black
+        } else {
+            PlayerColor::White
+        }
+    }
 
+    pub fn player_to_move(&self) -> PlayerColor {
+        if Self::white_to_move(&self) {
+            PlayerColor::White
+        } else {
+            PlayerColor::Black
+        }
+    }
     // Mutates metadata setting the player to move. Returns the metadata to be consumed optionally if convenient.
     pub fn set_player_to_move(&mut self, color: PlayerColor) -> u8 {
         let result = match color {
@@ -84,7 +99,7 @@ impl PositionInfo {
         !self.white_to_move()
     }
 
-    pub fn short_castling_allowed(&self, color: PlayerColor) -> bool {
+    pub fn has_short_castling_rights(&self, color: PlayerColor) -> bool {
         match color {
             PlayerColor::White => {
                 (self.castling_rights & u8::nth(CastlingRightsBits::WhiteShortCastlingRights as u8))
@@ -96,7 +111,7 @@ impl PositionInfo {
             }
         }
     }
-    pub fn long_castling_allowed(&self, color: PlayerColor) -> bool {
+    pub fn has_long_castling_rights(&self, color: PlayerColor) -> bool {
         match color {
             PlayerColor::White => {
                 (self.castling_rights & u8::nth(CastlingRightsBits::WhiteLongCastlingRights as u8))
@@ -184,20 +199,22 @@ impl Position {
         self.position_info.pass_turn();
     }
 
+    pub fn get_raw_attacked_squares_for_waiting_player(&self) -> BitB64 {
+        // not implemented
+        EMPTY_BOARD
+    }
+
+    pub fn get_raw_attacked_squares_for_moving_player(&self) -> BitB64 {
+        // not implemented
+        EMPTY_BOARD
+    }
+
     pub fn player_to_move(&self) -> PlayerColor {
-        if self.position_info.white_to_move() {
-            PlayerColor::White
-        } else {
-            PlayerColor::Black
-        }
+        self.position_info.player_to_move()
     }
 
     pub fn enemy_player(&self) -> PlayerColor {
-        if self.position_info.white_to_move() {
-            PlayerColor::Black
-        } else {
-            PlayerColor::White
-        }
+        self.position_info.enemy_player()
     }
 
     pub fn pieces_to_move(&self) -> &PlayerBitboard {
@@ -262,7 +279,7 @@ impl Position {
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
-            let mut moves_list = &piece_and_moves.moves;
+            let moves_list = &piece_and_moves.moves;
             // Only keep leag moves in the new vector for each entry.
             let mut legal_moves = Vec::new();
             for mv in moves_list.iter() {
@@ -277,16 +294,15 @@ impl Position {
                 }
                 legal_moves.push(*mv);
             }
-            if legal_moves.len() == 0 {
-                continue;
+            if legal_moves.len() > 0 {
+                result.insert(
+                    *from_id,
+                    PieceAndMoves {
+                        typpe: typpe,
+                        moves: legal_moves,
+                    },
+                );
             }
-            result.insert(
-                *from_id,
-                PieceAndMoves {
-                    typpe: typpe,
-                    moves: legal_moves,
-                },
-            );
         }
         result
     }
@@ -304,7 +320,15 @@ impl Position {
         ];
 
         for generate_moves in piece_generators.iter() {
-            merge_moves_map(generate_moves(&self), &mut result);
+            merge_moves_map(
+                generate_moves(
+                    &self,
+                    MoveGenOpts {
+                        perspective: MoveGenPerspective::MovingPlayer,
+                    },
+                ),
+                &mut result,
+            );
         }
 
         result

@@ -1,4 +1,4 @@
-use super::{bishop, rook};
+use super::{bishop, rook, MoveGenOpts, MoveGenPerspective};
 use super::{
     bishop::BishopBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
     MovesMap, PieceAndMoves,
@@ -6,46 +6,35 @@ use super::{
 
 use crate::chess::bitboard::{BitArraySize, BitB64, BitboardMove, EMPTY_BOARD};
 use crate::chess::position::{self, Position};
-use crate::chess::PieceType;
+use crate::chess::{PieceType, PlayerColor};
 
 pub struct QueenBitboardMoveGenerator {}
 
-pub fn compute_single_queen_attacking_moves(pos: &Position, id: u8) -> BitB64 {
-    rook::compute_single_rook_attacking_moves(pos, id)
-        | bishop::compute_single_bishop_attacking_moves(pos, id)
-}
-
-pub fn compute_queen_attacking_moves(pos: &Position) -> BitB64 {
-    let mut result = EMPTY_BOARD;
-    let mut piece_set = pos.pieces_to_move().queens;
-    while piece_set != EMPTY_BOARD {
-        let id = piece_set.trailing_zeros() as u8;
-        result |= compute_single_queen_attacking_moves(pos, id);
-        piece_set ^= u64::nth(id);
-    }
-    result
+pub fn compute_queen_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    let (ally_pieces, enemy_pieces) = match opts.perspective {
+        MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+        MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+    };
+    bishop::compute_raw_attacking_moves_as_bishop(ally_pieces, enemy_pieces, PieceType::Queen)
+        | rook::compute_raw_attacking_moves_as_rook(ally_pieces, enemy_pieces, PieceType::Queen)
 }
 
 impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
-    fn get_attacking_moves(pos: &Position) -> MovesMap {
-        let mut result = bishop::get_attacking_moves_as_bishop(pos, PieceType::Queen);
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        let mut result =
+            bishop::get_attacking_moves_as_bishop(ally_pieces, enemy_pieces, PieceType::Queen);
         super::merge_moves_map(
-            rook::get_attacking_moves_as_rook(pos, PieceType::Queen),
+            rook::compute_attacking_moves_as_rook(ally_pieces, enemy_pieces, PieceType::Queen),
             &mut result,
         );
         result
     }
 
-    fn generate_moves(pos: &Position) -> MovesMap {
-        let mut result = MovesMap::new();
-        super::merge_moves_map(
-            bishop::generate_moves_as_bishop(pos, PieceType::Queen),
-            &mut result,
-        );
-        super::merge_moves_map(
-            rook::generate_moves_as_rook(pos, PieceType::Queen),
-            &mut result,
-        );
-        result
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts)
     }
 }

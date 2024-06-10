@@ -1,6 +1,6 @@
 use super::internal::{self, bitb64_to_moves_list};
 use super::internal::{get_ij_from_sq_id, try_generate_move_in_direction};
-use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
+use super::{BitboardMoveGenerator, MoveGenOpts, MovesMap, PieceAndMoves};
 use crate::chess::bitboard;
 use crate::chess::bitboard::{BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD};
 use crate::chess::position::Position;
@@ -10,11 +10,12 @@ use std::collections::HashMap;
 
 pub struct RookBitboardMoveGenerator {}
 
-pub fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
+pub fn compute_single_rook_attacking_moves(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    id: u8,
+) -> BitB64 {
     let (i0, j0) = get_ij_from_sq_id(id as i8);
-
-    let enemy_pieces = pos.enemy_pieces();
-    let ally_pieces = pos.pieces_to_move();
     let mut cur_rook_moves = EMPTY_BOARD;
     let mut dir_blockedness = vec![
         false, // up
@@ -44,23 +45,39 @@ pub fn compute_single_rook_attacking_moves(pos: &Position, id: u8) -> BitB64 {
     cur_rook_moves
 }
 
-fn compute_rook_attacking_moves(pos: &Position) -> BitB64 {
+pub fn compute_raw_attacking_moves_as_rook(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> BitB64 {
     let mut result = EMPTY_BOARD;
-    let mut piece_set = pos.pieces_to_move().rooks;
-    while piece_set != 0 {
+    let mut piece_set = *ally_pieces.pieces(real_type);
+    while piece_set != EMPTY_BOARD {
         let id = piece_set.trailing_zeros() as u8;
-        result |= compute_single_rook_attacking_moves(pos, id);
+        result |= compute_single_rook_attacking_moves(ally_pieces, enemy_pieces, id);
         piece_set ^= u64::nth(id);
     }
     result
 }
 
-pub fn get_attacking_moves_as_rook(pos: &Position, real_type: PieceType) -> MovesMap {
+// pub fn compute_raw_enemy_attacking_moves(pos: &Position) -> BitB64 {
+//     compute_raw_attacking_moves_as_rook(pos.enemy_pieces(), pos.pieces_to_move())
+// }
+
+// pub fn compute_raw_attacking_moves(pos: &Position) -> BitB64 {
+//     compute_raw_attacking_moves_as_rook(pos.pieces_to_move(), pos.enemy_pieces())
+// }
+
+pub fn compute_attacking_moves_as_rook(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> MovesMap {
     let mut result = HashMap::new();
-    let mut piece_set = *pos.pieces_to_move().pieces(real_type);
-    while piece_set != 0 {
+    let mut piece_set = *ally_pieces.pieces(real_type);
+    while piece_set != EMPTY_BOARD {
         let id = piece_set.trailing_zeros() as u8;
-        let moves = compute_single_rook_attacking_moves(pos, id);
+        let moves = compute_single_rook_attacking_moves(ally_pieces, enemy_pieces, id);
         result.insert(
             id,
             PieceAndMoves {
@@ -73,17 +90,21 @@ pub fn get_attacking_moves_as_rook(pos: &Position, real_type: PieceType) -> Move
     result
 }
 
-pub fn generate_moves_as_rook(pos: &Position, real_type: PieceType) -> MovesMap {
+pub fn generate_moves_as_rook(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> MovesMap {
     // Rook atatacking moves are all moves it has
-    get_attacking_moves_as_rook(pos, real_type)
+    compute_attacking_moves_as_rook(ally_pieces, enemy_pieces, real_type)
 }
 
 impl BitboardMoveGenerator for RookBitboardMoveGenerator {
-    fn get_attacking_moves(pos: &Position) -> MovesMap {
-        get_attacking_moves_as_rook(pos, PieceType::Rook)
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        compute_attacking_moves_as_rook(pos.pieces_to_move(), pos.enemy_pieces(), PieceType::Rook)
     }
 
-    fn generate_moves(pos: &Position) -> MovesMap {
-        generate_moves_as_rook(pos, PieceType::Rook)
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts)
     }
 }

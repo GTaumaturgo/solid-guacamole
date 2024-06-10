@@ -35,10 +35,19 @@ pub struct PieceAndMoves {
 }
 pub type MovesMap = HashMap<u8, PieceAndMoves>;
 
-pub trait BitboardMoveGenerator {
-    fn generate_moves(pos: &Position) -> MovesMap;
+pub enum MoveGenPerspective {
+    MovingPlayer,
+    WaitingPlayer,
+}
 
-    fn get_attacking_moves(pos: &Position) -> MovesMap;
+pub struct MoveGenOpts {
+    pub perspective: MoveGenPerspective,
+}
+
+pub trait BitboardMoveGenerator {
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
+
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
 }
 
 // Merges two move maps. The second one is borrowed and freed, the first one lives.
@@ -49,8 +58,10 @@ pub fn merge_moves_map(input: MovesMap, output: &mut MovesMap) {
             output_pc_and_moves
                 .moves
                 .extend(input_pc_and_moves.moves.iter());
+        } else {
+            // Create a new entry.
+            output.insert(*sq_id, input_pc_and_moves.clone());
         }
-        output.insert(*sq_id, input_pc_and_moves.clone());
     }
 }
 

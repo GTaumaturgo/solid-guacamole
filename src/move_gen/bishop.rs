@@ -1,10 +1,11 @@
-use super::internal;
 use super::internal::{
     get_ij_from_sq_id, intersect, is_inside_board, try_generate_move_in_direction,
 };
+use super::{internal, MoveGenOpts, MoveGenPerspective};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{self, BitArraySize, PlayerBitboard};
 use crate::chess::position::Position;
+use crate::chess::PlayerColor;
 use crate::chess::{
     bitboard::{BitB64, BitboardMove, EMPTY_BOARD},
     PieceType,
@@ -12,9 +13,11 @@ use crate::chess::{
 
 use std::collections::HashMap;
 
-pub fn compute_single_bishop_attacking_moves(pos: &Position, id: u8) -> BitB64 {
-    let (ally_pieces, enemy_pieces) = (pos.pieces_to_move(), pos.enemy_pieces());
-
+pub fn compute_single_bishop_attacking_moves(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    id: u8,
+) -> BitB64 {
     let mut cur_bishop_moves = EMPTY_BOARD;
     let mut dir_blockedness = vec![
         false, // upleft
@@ -51,25 +54,34 @@ pub fn compute_single_bishop_attacking_moves(pos: &Position, id: u8) -> BitB64 {
     cur_bishop_moves
 }
 
-pub fn compute_bishop_attacking_moves(pos: &Position) -> BitB64 {
+pub fn compute_raw_attacking_moves_as_bishop(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> BitB64 {
     let mut result = EMPTY_BOARD;
-    let mut piece_set = pos.pieces_to_move().bishops;
+    let mut piece_set = *ally_pieces.pieces(real_type);
     while piece_set != EMPTY_BOARD {
         let id = piece_set.trailing_zeros() as u8;
-        result |= compute_single_bishop_attacking_moves(pos, id);
+        result |= compute_single_bishop_attacking_moves(ally_pieces, enemy_pieces, id);
         piece_set ^= u64::nth(id);
     }
     result
 }
 
-pub fn get_attacking_moves_as_bishop(pos: &Position, real_type: PieceType) -> MovesMap {
+pub fn get_attacking_moves_as_bishop(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> MovesMap {
     let mut result = HashMap::new();
-    let mut piece_set = *pos.pieces_to_move().pieces(real_type);
+    let mut piece_set = *ally_pieces.pieces(real_type);
     while piece_set != 0 {
         let id = piece_set.trailing_zeros() as i8;
         let cur_bishop = u64::nth(id as u8);
         piece_set ^= cur_bishop; // Remove bishop from the set.
-        let cur_bishop_moves = compute_single_bishop_attacking_moves(pos, id as u8);
+        let cur_bishop_moves =
+            compute_single_bishop_attacking_moves(ally_pieces, enemy_pieces, id as u8);
         let moves = internal::bitb64_to_moves_list(id as u8, cur_bishop_moves);
         result.insert(
             id as u8,
@@ -82,19 +94,34 @@ pub fn get_attacking_moves_as_bishop(pos: &Position, real_type: PieceType) -> Mo
     result
 }
 
-pub fn generate_moves_as_bishop(pos: &Position, real_type: PieceType) -> MovesMap {
-    // Bishop atatacking moves are all moves it has
-    get_attacking_moves_as_bishop(pos, real_type)
+pub fn generate_moves_as_bishop(
+    ally_pieces: &PlayerBitboard,
+    enemy_pieces: &PlayerBitboard,
+    real_type: PieceType,
+) -> MovesMap {
+    // Bishop atatacking moves are all moves.
+    get_attacking_moves_as_bishop(ally_pieces, enemy_pieces, real_type)
 }
 
 pub struct BishopBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
-    fn get_attacking_moves(pos: &Position) -> MovesMap {
-        get_attacking_moves_as_bishop(pos, PieceType::Bishop)
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        match opts.perspective {
+            MoveGenPerspective::MovingPlayer => get_attacking_moves_as_bishop(
+                pos.pieces_to_move(),
+                pos.enemy_pieces(),
+                PieceType::Bishop,
+            ),
+            MoveGenPerspective::WaitingPlayer => get_attacking_moves_as_bishop(
+                pos.enemy_pieces(),
+                pos.pieces_to_move(),
+                PieceType::Bishop,
+            ),
+        }
     }
 
-    fn generate_moves(pos: &Position) -> MovesMap {
-        generate_moves_as_bishop(pos, PieceType::Bishop)
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts)
     }
 }
