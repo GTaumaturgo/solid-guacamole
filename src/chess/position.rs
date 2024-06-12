@@ -13,6 +13,24 @@ use crate::move_gen::{
 use crate::move_gen::{MoveGenOpts, MoveGenPerspective};
 use crate::UciRequest;
 
+pub struct PositionScore {
+    pub score: i32,
+    // 0 by default. Different than 0 means that the position is a mate in x moves.
+    pub mate_in: u8,
+    // bit 0: stalemate.
+    // bit 1: checkmate for white.
+    // bit 2: checkmate for black.
+    // bit 3: white_king_in_check.
+    // bit 4: black_king_in_check.
+    pub metadata: u8,
+    // Bitboard of pinned pieces.
+    pub pinned_pieces: u64,
+}
+pub struct ScoredPosition {
+    pub position: Position,
+    pub score: PositionScore,
+}
+
 enum PositionInfoMetadataBits {
     PlayerToMove,
 }
@@ -200,8 +218,24 @@ impl Position {
     }
 
     pub fn get_raw_attacked_squares_for_waiting_player(&self) -> BitB64 {
-        // not implemented
-        EMPTY_BOARD
+        let generators = vec![
+            PawnBitboardMoveGenerator::get_raw_attacking_moves,
+            KnightBitboardMoveGenerator::get_raw_attacking_moves,
+            BishopBitboardMoveGenerator::get_raw_attacking_moves,
+            RookBitboardMoveGenerator::get_raw_attacking_moves,
+            QueenBitboardMoveGenerator::get_raw_attacking_moves,
+            KingBitboardMoveGenerator::get_raw_attacking_moves,
+        ];
+        let mut result = EMPTY_BOARD;
+        for generator in generators {
+            result |= generator(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::WaitingPlayer,
+                },
+            )
+        }
+        result
     }
 
     pub fn get_raw_attacked_squares_for_moving_player(&self) -> BitB64 {
@@ -213,7 +247,7 @@ impl Position {
         self.position_info.player_to_move()
     }
 
-    pub fn enemy_player(&self) -> PlayerColor {
+    pub fn waiting_player(&self) -> PlayerColor {
         self.position_info.enemy_player()
     }
 
@@ -333,21 +367,4 @@ impl Position {
 
         result
     }
-}
-pub struct PositionScore {
-    pub score: i32,
-    // 0 by default. Different than 0 means that the position is a mate in x moves.
-    pub mate_in: u8,
-    // bit 0: stalemate.
-    // bit 1: checkmate for white.
-    // bit 2: checkmate for black.
-    // bit 3: white_king_in_check.
-    // bit 4: black_king_in_check.
-    pub metadata: u8,
-    // Bitboard of pinned pieces.
-    pub pinned_pieces: u64,
-}
-pub struct ScoredPosition {
-    pub position: Position,
-    pub score: PositionScore,
 }

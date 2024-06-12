@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 pub struct PawnBitboardMoveGenerator {}
 
-fn compute_single_pawn_attacking_moves(
+fn compute_raw_single_pawn_attacking_moves(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
     pos_info: &PositionInfo,
@@ -41,18 +41,25 @@ fn compute_single_pawn_attacking_moves(
     };
 
     let advance_sq_id = (id + pawn_move_direction * 8) as i8;
-    let sq_capture_left = u64::nth((advance_sq_id - pawn_move_direction) as u8);
-    if j != leftmost_col && intersect(sq_capture_left, enemy_pieces.all_pieces()) {
-        cur_pawn_moves |= sq_capture_left;
+    let capture_left_sq_id = advance_sq_id - pawn_move_direction;
+    if internal::bounded(capture_left_sq_id, 0, 63) {
+        let sq_capture_left = u64::nth((capture_left_sq_id) as u8);
+        if j != leftmost_col && intersect(sq_capture_left, enemy_pieces.all_pieces()) {
+            cur_pawn_moves |= sq_capture_left;
+        }
     }
-    let sq_capture_right = u64::nth((advance_sq_id + pawn_move_direction) as u8);
-    if j != rightmost_col && intersect(sq_capture_right, enemy_pieces.all_pieces()) {
-        cur_pawn_moves |= sq_capture_right;
+
+    let capture_right_sq_id = advance_sq_id + pawn_move_direction;
+    if internal::bounded(capture_right_sq_id, 0, 63) {
+        let sq_capture_right = u64::nth((capture_right_sq_id) as u8);
+        if j != rightmost_col && intersect(sq_capture_right, enemy_pieces.all_pieces()) {
+            cur_pawn_moves |= sq_capture_right;
+        }
     }
     cur_pawn_moves
 }
 
-pub fn compute_pawn_attacking_moves(
+pub fn compute_pawn_attacking_moves_internal(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
     pos_info: &PositionInfo,
@@ -62,7 +69,7 @@ pub fn compute_pawn_attacking_moves(
     while piece_set != 0 {
         let id = piece_set.trailing_zeros() as u8;
         result |=
-            compute_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id as i8);
+            compute_raw_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id as i8);
         piece_set ^= u64::nth(id);
     }
     result
@@ -81,7 +88,7 @@ fn get_attacking_moves_internal(
         pawn_set ^= cur_pawn;
         let resulting_moves = internal::bitb64_to_moves_list(
             id as u8,
-            compute_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id),
+            compute_raw_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id),
         );
         if resulting_moves.len() > 0 {
             result.insert(
@@ -115,14 +122,17 @@ fn generate_moves_internal(
         println!("Generating moves for pawn at i: {}, j: {}", i, j);
         let mut cur_pawn_moves = EMPTY_BOARD;
         let player_color = pos_info.player_to_move();
-
+        let last_row = match player_color {
+            PlayerColor::White => 7i8,
+            PlayerColor::Black => 0i8,
+        };
+        if i == last_row {
+            // TODO(gtaumaturgo): implement promotion.
+            continue;
+        }
         let pawns_initial_row = match player_color {
             PlayerColor::Black => 6,
             PlayerColor::White => 1,
-        };
-        let last_row = match player_color {
-            PlayerColor::White => 6,
-            PlayerColor::Black => 1,
         };
         let pawn_move_direction: i8 = match player_color {
             PlayerColor::Black => -1,
@@ -146,7 +156,7 @@ fn generate_moves_internal(
         }
         // Last, also the captures.W
         cur_pawn_moves |=
-            compute_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id);
+            compute_raw_single_pawn_attacking_moves(ally_pieces, enemy_pieces, pos_info, id);
         let resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
         if resulting_moves.len() == 0 {
             return result;
@@ -163,6 +173,14 @@ fn generate_moves_internal(
 }
 
 impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        compute_pawn_attacking_moves_internal(ally_pieces, enemy_pieces, &pos.position_info)
+    }
+
     fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),

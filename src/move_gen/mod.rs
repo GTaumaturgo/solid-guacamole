@@ -45,6 +45,8 @@ pub struct MoveGenOpts {
 }
 
 pub trait BitboardMoveGenerator {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64;
+
     fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
 
     fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;

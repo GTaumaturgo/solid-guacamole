@@ -1,6 +1,6 @@
 use super::internal::{self, bitb64_to_moves_list};
 use super::internal::{get_ij_from_sq_id, try_generate_move_in_direction};
-use super::{BitboardMoveGenerator, MoveGenOpts, MovesMap, PieceAndMoves};
+use super::{BitboardMoveGenerator, MoveGenOpts, MoveGenPerspective, MovesMap, PieceAndMoves};
 use crate::chess::bitboard;
 use crate::chess::bitboard::{BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD};
 use crate::chess::position::Position;
@@ -60,14 +60,6 @@ pub fn compute_raw_attacking_moves_as_rook(
     result
 }
 
-// pub fn compute_raw_enemy_attacking_moves(pos: &Position) -> BitB64 {
-//     compute_raw_attacking_moves_as_rook(pos.enemy_pieces(), pos.pieces_to_move())
-// }
-
-// pub fn compute_raw_attacking_moves(pos: &Position) -> BitB64 {
-//     compute_raw_attacking_moves_as_rook(pos.pieces_to_move(), pos.enemy_pieces())
-// }
-
 pub fn compute_attacking_moves_as_rook(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
@@ -90,16 +82,15 @@ pub fn compute_attacking_moves_as_rook(
     result
 }
 
-pub fn generate_moves_as_rook(
-    ally_pieces: &PlayerBitboard,
-    enemy_pieces: &PlayerBitboard,
-    real_type: PieceType,
-) -> MovesMap {
-    // Rook atatacking moves are all moves it has
-    compute_attacking_moves_as_rook(ally_pieces, enemy_pieces, real_type)
-}
-
 impl BitboardMoveGenerator for RookBitboardMoveGenerator {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        compute_raw_attacking_moves_as_rook(ally_pieces, enemy_pieces, PieceType::Rook)
+    }
+
     fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         compute_attacking_moves_as_rook(pos.pieces_to_move(), pos.enemy_pieces(), PieceType::Rook)
     }

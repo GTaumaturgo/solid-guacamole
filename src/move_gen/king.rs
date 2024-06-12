@@ -81,10 +81,10 @@ fn squares_to_check_for_short_castle(p_to_move: PlayerColor) -> BitB64 {
 fn short_castle_valid(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
+    p_to_move: PlayerColor,
     pos_info: &PositionInfo,
     enemy_attacked_squares: BitB64,
 ) -> bool {
-    let p_to_move = pos_info.player_to_move();
     if !pos_info.has_short_castling_rights(p_to_move) {
         false
     } else if intersect(
@@ -102,28 +102,25 @@ fn short_castle_valid(
 fn long_castle_valid(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
+    p_to_move: PlayerColor,
     pos_info: &PositionInfo,
     enemy_attacked_squares: BitB64,
 ) -> bool {
-    if !pos_info.has_long_castling_rights(pos_info.player_to_move()) {
+    if !pos_info.has_long_castling_rights(p_to_move) {
         false
     } else if intersect(
         enemy_attacked_squares,
-        squares_to_check_for_long_castle(pos_info.player_to_move()),
+        squares_to_check_for_long_castle(p_to_move),
     ) {
         false
-    } else if long_castle_not_blocked_by_pieces(
-        ally_pieces,
-        enemy_pieces,
-        pos_info.player_to_move(),
-    ) {
+    } else if long_castle_not_blocked_by_pieces(ally_pieces, enemy_pieces, p_to_move) {
         false
     } else {
         true
     }
 }
 
-fn compute_king_attacking_moves(
+fn compute_raw_king_attacking_moves_internal(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
 ) -> BitB64 {
@@ -162,7 +159,7 @@ fn get_attacking_moves_internal(
 
     let moves = internal::bitb64_to_moves_list(
         id as u8,
-        compute_king_attacking_moves(ally_pieces, enemy_pieces),
+        compute_raw_king_attacking_moves_internal(ally_pieces, enemy_pieces),
     );
     if !moves.is_empty() {
         result.insert(
@@ -179,6 +176,7 @@ fn get_attacking_moves_internal(
 fn generate_moves_internal(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
+    p_to_move: PlayerColor,
     pos_info: &PositionInfo,
     enemy_attacked_squares: BitB64,
 ) -> MovesMap {
@@ -187,53 +185,102 @@ fn generate_moves_internal(
 
     let mut result = get_attacking_moves_internal(ally_pieces, enemy_pieces);
 
-    if short_castle_valid(ally_pieces, enemy_pieces, pos_info, enemy_attacked_squares) {
+    if short_castle_valid(
+        ally_pieces,
+        enemy_pieces,
+        p_to_move,
+        pos_info,
+        enemy_attacked_squares,
+    ) {
+        let short_castle_sq_id = get_short_castle_sq_id(p_to_move);
         if let Some(x) = result.get_mut(&id) {
             x.moves.push(BitboardMove {
                 from: id,
-                to: get_short_castle_sq_id(pos_info.player_to_move()),
+                to: short_castle_sq_id,
                 sp_move_type: SpecialMoveType::ShortCastle,
             });
+        } else {
+            result.insert(
+                id,
+                PieceAndMoves {
+                    typpe: PieceType::King,
+                    moves: vec![BitboardMove {
+                        from: id,
+                        to: short_castle_sq_id,
+                        sp_move_type: SpecialMoveType::ShortCastle,
+                    }],
+                },
+            );
         }
     }
-    if long_castle_valid(ally_pieces, enemy_pieces, pos_info, enemy_attacked_squares) {
+    if long_castle_valid(
+        ally_pieces,
+        enemy_pieces,
+        p_to_move,
+        pos_info,
+        enemy_attacked_squares,
+    ) {
+        let long_castle_sq_id = get_long_castle_sq_id(p_to_move);
         if let Some(x) = result.get_mut(&id) {
             x.moves.push(BitboardMove {
                 from: id,
-                to: get_short_castle_sq_id(pos_info.player_to_move()),
+                to: long_castle_sq_id,
                 sp_move_type: SpecialMoveType::LongCastle,
             });
+        } else {
+            let long_castle_sq_id = get_long_castle_sq_id(p_to_move);
+            result.insert(
+                id,
+                PieceAndMoves {
+                    typpe: PieceType::King,
+                    moves: vec![BitboardMove {
+                        from: id,
+                        to: long_castle_sq_id,
+                        sp_move_type: SpecialMoveType::ShortCastle,
+                    }],
+                },
+            );
         }
     }
     result
 }
 
 impl BitboardMoveGenerator for KingBitboardMoveGenerator {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        compute_raw_king_attacking_moves_internal(ally_pieces, enemy_pieces)
+    }
+
     fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        match opts.perspective {
-            MoveGenPerspective::MovingPlayer => {
-                get_attacking_moves_internal(pos.pieces_to_move(), pos.enemy_pieces())
-            }
-            MoveGenPerspective::WaitingPlayer => {
-                get_attacking_moves_internal(pos.enemy_pieces(), pos.pieces_to_move())
-            }
-        }
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        get_attacking_moves_internal(ally_pieces, enemy_pieces)
     }
 
     fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        match opts.perspective {
-            MoveGenPerspective::MovingPlayer => generate_moves_internal(
+        let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
                 pos.enemy_pieces(),
-                &pos.position_info,
-                pos.get_raw_attacked_squares_for_waiting_player(),
+                pos.player_to_move(),
             ),
-            MoveGenPerspective::WaitingPlayer => generate_moves_internal(
+            MoveGenPerspective::WaitingPlayer => (
                 pos.enemy_pieces(),
                 pos.pieces_to_move(),
-                &pos.position_info,
-                pos.get_raw_attacked_squares_for_moving_player(),
+                pos.waiting_player(),
             ),
-        }
+        };
+        generate_moves_internal(
+            ally_pieces,
+            enemy_pieces,
+            p_to_move,
+            &pos.position_info,
+            pos.get_raw_attacked_squares_for_waiting_player(),
+        )
     }
 }

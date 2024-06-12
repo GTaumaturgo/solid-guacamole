@@ -54,7 +54,7 @@ pub fn compute_single_bishop_attacking_moves(
     cur_bishop_moves
 }
 
-pub fn compute_raw_attacking_moves_as_bishop(
+pub fn compute_raw_attacking_moves_as_bishop_internal(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
     real_type: PieceType,
@@ -69,7 +69,7 @@ pub fn compute_raw_attacking_moves_as_bishop(
     result
 }
 
-pub fn get_attacking_moves_as_bishop(
+pub fn get_attacking_moves_as_bishop_internal(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,
     real_type: PieceType,
@@ -94,31 +94,27 @@ pub fn get_attacking_moves_as_bishop(
     result
 }
 
-pub fn generate_moves_as_bishop(
-    ally_pieces: &PlayerBitboard,
-    enemy_pieces: &PlayerBitboard,
-    real_type: PieceType,
-) -> MovesMap {
-    // Bishop atatacking moves are all moves.
-    get_attacking_moves_as_bishop(ally_pieces, enemy_pieces, real_type)
-}
-
 pub struct BishopBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        compute_raw_attacking_moves_as_bishop_internal(ally_pieces, enemy_pieces, PieceType::Bishop)
+    }
+
     fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        match opts.perspective {
-            MoveGenPerspective::MovingPlayer => get_attacking_moves_as_bishop(
-                pos.pieces_to_move(),
-                pos.enemy_pieces(),
-                PieceType::Bishop,
-            ),
-            MoveGenPerspective::WaitingPlayer => get_attacking_moves_as_bishop(
-                pos.enemy_pieces(),
-                pos.pieces_to_move(),
-                PieceType::Bishop,
-            ),
-        }
+        let (ally_pieces, enemy_pieces) = match opts.perspective {
+            MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
+            MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
+        };
+        get_attacking_moves_as_bishop_internal(
+            pos.pieces_to_move(),
+            pos.enemy_pieces(),
+            PieceType::Bishop,
+        )
     }
 
     fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
