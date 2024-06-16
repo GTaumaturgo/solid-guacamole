@@ -10,6 +10,20 @@ use std::collections::HashMap;
 
 pub struct RookBitboardMoveGenerator {}
 
+pub fn get_rook_move_for_long_castle(color: PlayerColor) -> (u8, u8) {
+    match color {
+        PlayerColor::White => (bitboard::A1, bitboard::D1),
+        PlayerColor::Black => (bitboard::A8, bitboard::D8),
+    }
+}
+
+pub fn get_rook_move_for_short_castle(color: PlayerColor) -> (u8, u8) {
+    match color {
+        PlayerColor::White => (bitboard::H1, bitboard::F1),
+        PlayerColor::Black => (bitboard::H8, bitboard::F8),
+    }
+}
+
 pub fn compute_single_rook_attacking_moves(
     ally_pieces: &PlayerBitboard,
     enemy_pieces: &PlayerBitboard,

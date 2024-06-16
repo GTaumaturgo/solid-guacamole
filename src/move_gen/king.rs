@@ -85,16 +85,21 @@ fn short_castle_valid(
     pos_info: &PositionInfo,
     enemy_attacked_squares: BitB64,
 ) -> bool {
+    println!("Checking short castle!");
     if !pos_info.has_short_castling_rights(p_to_move) {
+        println!("1");
         false
     } else if intersect(
         enemy_attacked_squares,
         squares_to_check_for_short_castle(p_to_move),
     ) {
+        println!("2");
         false
     } else if short_castle_not_blocked_by_pieces(ally_pieces, enemy_pieces, p_to_move) {
+        println!("4");
         false
     } else {
+        println!("5");
         true
     }
 }

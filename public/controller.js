@@ -1,5 +1,5 @@
 import { BoardStateManager } from "./board_state_manager.js"
-import { IssuePossibleMovesReq, parsePossibleMoves } from "./client.js"
+import { GetLongClastingSquareforKing, IssuePossibleMovesReq, parsePossibleMoves } from "./client.js"
 import { getSquareName, PIECE_DIV_SUFFIX, OVERLAY_DIV_SUFFIX, BLACK_PLAYER, WHITE_PLAYER } from "./common.js"
 
 /** The Controller class is responsible for managing all the DOM*/
@@ -51,12 +51,7 @@ export class Controller {
         return sqName[0].charCodeAt(0) - 'A'.charCodeAt(0);
     }
 
-    async executeMove(fromSquare, toSquare, debug = true) {
-        /** Executes a move from the given fromSquare to the given toSquare.
-         * @param {string} fromSquare The name of the square from which the piece is moving.
-         * @param {string} toSquare The name of the square to which the piece is moving. */
-
-
+    MoveSinglePieceAndUpdateInternalState(fromSquare, toSquare, new_position) {
 
         let row_from = this.GetRowFromSquareName(fromSquare);
         let row_to = this.GetRowFromSquareName(toSquare);
@@ -71,18 +66,55 @@ export class Controller {
         if (cur_position.hasPieceAt(row_to, col_to)) {
             this.undrawPieceAtSquare(row_to, col_to);
         }
-        
-        let new_position = cur_position.copy_as_continuation();
         new_position.setPieceAsEmpty(row_from, col_from);
         new_position.setPiece(row_to, col_to, piece_as_str);
-        console.log(new_position.getPiece(row_from, col_from));
-        console.log(new_position.getPiece(row_to, col_to));
-        console.log('=====');
+    }
+    async ExecuteShortCastlingForWhite() {
+        this.ExecuteCastlingMove('E1', 'G1', 'H1', 'F1');
+    }
+
+    async ExecuteShortCastlingForBlack() {
+        this.ExecuteCastlingMove('E8', 'G8', 'H8', 'F8');
+    }
+
+    async ExecuteLongCastlingForWhite() {
+        this.ExecuteCastlingMove('E1', 'C1', 'A1', 'D1');
+    }
+
+    async ExecuteLongCastlingForBlack() {
+        this.ExecuteCastlingMove('E8', 'C8', 'A8', 'D8');
+    }
+
+    async ExecuteCastlingMove(KingFromSquare, KingToSquare, RookFromSquare, RookToSquare) {
+        let new_position = this.getCurPosition().copy_as_continuation();
+        this.MoveSinglePieceAndUpdateInternalState(KingFromSquare, KingToSquare, new_position);
+        this.MoveSinglePieceAndUpdateInternalState(RookFromSquare, RookToSquare, new_position);
         this.board_state_manager.push_state(new_position);
+        // We need to draw after pushing the new position as it checks the position at the top of the stack.
+        this.drawPieceAtSquareIfPresent(this.GetRowFromSquareName(KingToSquare), this.GetColumnFromSquareName(KingToSquare));
+        this.drawPieceAtSquareIfPresent(this.GetRowFromSquareName(RookToSquare), this.GetColumnFromSquareName(RookToSquare))
+        this.flip_player_to_move();
+    }
+
+
+
+    async executeMoveFull(fromSquare, toSquare, debug = true) {
+        /** Executes a move from the given fromSquare to the given toSquare.
+         * @param {string} fromSquare The name of the square from which the piece is moving.
+         * @param {string} toSquare The name of the square to which the piece is moving. */
+        let new_position = this.getCurPosition().copy_as_continuation();
+        let row_to = this.GetRowFromSquareName(toSquare);
+        let col_to = this.GetColumnFromSquareName(toSquare);
+
+        this.MoveSinglePieceAndUpdateInternalState(fromSquare, toSquare, new_position);
+        this.board_state_manager.push_state(new_position);
+
         // We need to draw after pushing the new position as it checks the position at the top of the stack.
         this.drawPieceAtSquareIfPresent(row_to, col_to);
         this.flip_player_to_move();
     }
+
+
 
     flip_player_to_move() {
         if (this.to_move == WHITE_PLAYER) {
@@ -96,14 +128,15 @@ export class Controller {
         /**Selects the square at the given row and column.
          * @param {number} row The row index of the square to select.
          * @param {number} column The column index of the square to select. */
-        let square_as_str = getSquareName(row, column);
         if (!this.getCurPosition().hasPieceAt(row, column)) return;
+
+        let square_as_str = getSquareName(row, column);
         this.selectedSquare = square_as_str;
-        console.log(this.getCurPosition());
         let movesMap = await this.getCurPosition().movesMap();
-        console.log(movesMap);
+        // console.log(this.getCurPosition());
+        // console.log(movesMap);
+        // console.log(moves);
         let moves = movesMap.get(square_as_str);
-        console.log(moves);
         if (typeof moves !== "undefined") {
             moves.forEach((sq) => {
                 this.canMoveTo.add(sq);
@@ -202,7 +235,7 @@ export class Controller {
         console.log(toName);
         let sqElem = document.getElementById(toName + OVERLAY_DIV_SUFFIX);
         if (sqElem == undefined) {
-            console.log("draw circle failed!!");
+            console.log("draw overlay failed!!");
             return;
         }
         sqElem.classList.add("red-overlay");
@@ -268,7 +301,7 @@ async function squareOnClick(event, debug = true) {
     let sq_as_str = getSquareName(row, column);
     let cur_selected = ControllerInstance().selectedSquare;
     if (debug) {
-        console.log('currently qselected square:' + cur_selected);
+        console.log('currently selected square:' + cur_selected);
         console.log('clicked:' + sq_as_str);
         console.log(ControllerInstance().canMoveTo);
     }
@@ -276,7 +309,21 @@ async function squareOnClick(event, debug = true) {
     // Because the `canMoveTo` vector already has only the pieces of the side to move, we don't have to check that.
     if (cur_selected != null && ControllerInstance().canMoveTo.has(sq_as_str)) {
         ControllerInstance().UnselectSquare();
-        ControllerInstance().executeMove(cur_selected, sq_as_str);
+        // TODO ALSO CHECK ITS THE KING
+
+        if (cur_selected == 'E1' && sq_as_str == 'G1') {
+            ControllerInstance().ExecuteShortCastlingForWhite();
+        } else if (cur_selected == 'E8' && sq_as_str == 'G8') {
+            ControllerInstance().ExecuteShortCastlingForBlack();
+        } else if (cur_selected == 'E1' && sq_as_str == 'C1') {
+            ControllerInstance().ExecuteLongCastlingForWhite();
+        } else if (cur_selected == 'E8' && sq_as_str == 'C8') {
+            ControllerInstance().ExecuteLongCastlingForBlack();
+        }
+        else {
+            ControllerInstance().executeMoveFull(cur_selected, sq_as_str);
+        }
+
         return;
     } else if (cur_selected == sq_as_str) {
         await ControllerInstance().UnselectSquare();

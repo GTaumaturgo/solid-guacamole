@@ -267,7 +267,7 @@ pub enum SpecialMoveType {
     RegularMove, // Move is not special,
     ShortCastle,
     LongCastle,
-    PromotionToHorse,
+    PromotionToKnight,
     PromotionToBishop,
     PromotionToRook,
     PromotionToQueen,

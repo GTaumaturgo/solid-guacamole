@@ -4,14 +4,16 @@ use crate::chess::bitboard::{
     BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD, FULL_BOARD,
 };
 use crate::chess::{ChessPiece, PieceType, PlayerColor};
+use crate::move_gen::{self, MoveGenOpts, MoveGenPerspective};
 use crate::move_gen::{
     bishop::BishopBitboardMoveGenerator, king::KingBitboardMoveGenerator,
     knight::KnightBitboardMoveGenerator, merge_moves_map, pawn::PawnBitboardMoveGenerator,
     queen::QueenBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
     MovesMap, PieceAndMoves,
 };
-use crate::move_gen::{MoveGenOpts, MoveGenPerspective};
 use crate::UciRequest;
+
+use super::bitboard::SpecialMoveType;
 
 pub struct PositionScore {
     pub score: i32,
@@ -118,28 +120,30 @@ impl PositionInfo {
     }
 
     pub fn has_short_castling_rights(&self, color: PlayerColor) -> bool {
-        match color {
-            PlayerColor::White => {
-                (self.castling_rights & u8::nth(CastlingRightsBits::WhiteShortCastlingRights as u8))
-                    != 0
-            }
-            PlayerColor::Black => {
-                (self.castling_rights & u8::nth(CastlingRightsBits::BlackShortCastlingRights as u8))
-                    != 0
-            }
-        }
+        true
+        // match color {
+        //     PlayerColor::White => {
+        //         (self.castling_rights & u8::nth(CastlingRightsBits::WhiteShortCastlingRights as u8))
+        //             != 0
+        //     }
+        //     PlayerColor::Black => {
+        //         (self.castling_rights & u8::nth(CastlingRightsBits::BlackShortCastlingRights as u8))
+        //             != 0
+        //     }
+        // }
     }
     pub fn has_long_castling_rights(&self, color: PlayerColor) -> bool {
-        match color {
-            PlayerColor::White => {
-                (self.castling_rights & u8::nth(CastlingRightsBits::WhiteLongCastlingRights as u8))
-                    != 0
-            }
-            PlayerColor::Black => {
-                (self.castling_rights & u8::nth(CastlingRightsBits::BlackLongCastlingRights as u8))
-                    != 0
-            }
-        }
+        true
+        // match color {
+        //     PlayerColor::White => {
+        //         (self.castling_rights & u8::nth(CastlingRightsBits::WhiteLongCastlingRights as u8))
+        //             != 0
+        //     }
+        //     PlayerColor::Black => {
+        //         (self.castling_rights & u8::nth(CastlingRightsBits::BlackLongCastlingRights as u8))
+        //             != 0
+        //     }
+        // }
     }
 }
 
@@ -269,20 +273,57 @@ impl Position {
         self.pass_turn();
     }
 
+    pub fn make_raw_bitboard_move(
+        (from, to): (u8, u8),
+        piece_set: &mut BitB64,
+        enemy_pieces: &mut PlayerBitboard,
+    ) -> () {
+        let delete_enemy_pieces_mask = FULL_BOARD ^ u64::nth(to);
+        enemy_pieces.pawns &= delete_enemy_pieces_mask;
+        enemy_pieces.knights &= delete_enemy_pieces_mask;
+        enemy_pieces.bishops &= delete_enemy_pieces_mask;
+        enemy_pieces.rooks &= delete_enemy_pieces_mask;
+        enemy_pieces.queens &= delete_enemy_pieces_mask;
+        enemy_pieces.king &= delete_enemy_pieces_mask;
+        *piece_set ^= u64::nth(from);
+        *piece_set |= u64::nth(to);
+    }
+
     pub fn make_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> &mut Self {
         // Remove the piece from its old position.
         // gets black or white bitboard
 
-        let pieces_to_move = match piece.color {
-            PlayerColor::White => &mut self.white,
-            PlayerColor::Black => &mut self.black,
+        let (ally_pieces, mut enemy_pieces) = match piece.color {
+            PlayerColor::White => (&mut self.white, &mut self.black),
+            PlayerColor::Black => (&mut self.black, &mut self.white),
         };
-        // remove piece from its old pos
-        //  &= !u64::nth(mv.from)
-        let pieces = pieces_to_move.mut_pieces(piece.typpe);
-        *pieces &= FULL_BOARD & u64::nth(mv.from);
-        *pieces |= u64::nth(mv.to);
 
+        let piece_set = ally_pieces.mut_pieces(piece.typpe);
+        Self::make_raw_bitboard_move((mv.from, mv.to), piece_set, enemy_pieces);
+
+        match mv.sp_move_type {
+            SpecialMoveType::RegularMove => (),
+            SpecialMoveType::ShortCastle => {
+                let (rook_from, rook_to) =
+                    move_gen::rook::get_rook_move_for_short_castle(piece.color);
+                let rooks = ally_pieces.mut_pieces(PieceType::Rook);
+                Self::make_raw_bitboard_move((rook_from, rook_to), rooks, &mut enemy_pieces);
+            }
+            SpecialMoveType::LongCastle => {
+                let (rook_from, rook_to) =
+                    move_gen::rook::get_rook_move_for_long_castle(piece.color);
+                let rooks = ally_pieces.mut_pieces(PieceType::Rook);
+                *rooks ^= u64::nth(rook_from);
+                *rooks |= u64::nth(rook_to);
+                Self::make_raw_bitboard_move((rook_from, rook_to), rooks, &mut enemy_pieces);
+            }
+            SpecialMoveType::EnPassantLeft => todo!(),
+            SpecialMoveType::EnPassantRight => todo!(),
+            SpecialMoveType::PromotionToBishop => todo!(),
+            SpecialMoveType::PromotionToKnight => todo!(),
+            SpecialMoveType::PromotionToRook => todo!(),
+            SpecialMoveType::PromotionToQueen => todo!(),
+        }
         // TODO(implement castling info updates.)
         self.update_info();
         // Return mutable reference to self to allow chaining calls.

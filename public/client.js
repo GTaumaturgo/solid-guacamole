@@ -36,6 +36,49 @@ export async function IssuePossibleMovesReq(board, player_to_move) {
     return uci_response.possible_moves;
 }
 
+// export function GetInitialSquareForKing()
+
+export function GetLongClastingSquareforKing(from) {
+    if (from == 'E1') {
+        return 'C1';
+    } else if (from == 'E8') {
+        return 'C8';
+    } else {
+        console.log('ERROR: Invalid State in GetLongClastingSquareforKing');
+        return null;
+    }
+}
+
+// function GetLongCastlingSquareForRook(king_from) {
+//     if (from == 'E1') {
+//         return 'C1';
+//     } else if (from == 'E8') {
+//         return 'C8';
+//     } else {
+//         console.log('ERROR: Invalid State in GetLongClastingSquareforKing');
+//         return null;
+//     }
+// }
+
+// function GetLongCastlingSquareForRook(king_from) {
+//     return king_from == 'E1' ? 'D1' : 'D8';
+// }
+
+export function GetShortClastingSquareforKing(from) {
+    if (from == 'E1') {
+        return 'G1';
+    } else if (from == 'E8') {
+        return 'G8';
+    } else {
+        console.log('ERROR: Invalid State in GetShortClastingSquareforKing');
+        return null;
+    }
+}
+
+// function GetShortCastlingSquareForRook(king_from) {
+//     return king_from == 'E1' ? 'F1' : 'F8';
+// }
+
 
 export async function parsePossibleMoves(possibleMoves) {
     let temp = await possibleMoves;
@@ -45,10 +88,24 @@ export async function parsePossibleMoves(possibleMoves) {
     for (const move of moves) {
         const from = move.split(':')[0];
         const to = move.split(':')[1];
+        // Reset from movesMap.
         if (!moveMap.has(from)) {
             moveMap.set(from, []);
         }
-        moveMap.get(from).push(to);
+
+        console.log('Checking special moves:');
+        console.log(from);
+        console.log(to);
+        if (to == 'O-O') {
+            console.log('detected O-O');
+            moveMap.get(from).push(GetShortClastingSquareforKing(from));
+        } else if (to == 'O-O-O') {
+            console.log('detected O-O-O');
+            moveMap.get(from).push(GetLongCastlingSquareForKing(from));
+        } else {
+            console.log('regular move');
+            moveMap.get(from).push(to);
+        }
     }
     return moveMap;
 }

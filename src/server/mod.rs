@@ -1,6 +1,8 @@
+use rocket::figment::providers::Format;
+
 use crate::{
     chess::{
-        bitboard::{BitArraySize, BitB64, PlayerBitboard, FULL_BOARD},
+        bitboard::{BitArraySize, BitB64, PlayerBitboard, SpecialMoveType, FULL_BOARD},
         position::Position,
     },
     move_gen::PieceAndMoves,
@@ -65,9 +67,31 @@ pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
     for (sq_id, piece_n_moves) in continuations_map.iter() {
         let cur_piece_moves = &piece_n_moves.moves;
         for mv in piece_n_moves.moves.iter() {
-            println!("{}:{}", sq_id_to_name(*sq_id), sq_id_to_name(mv.to));
-            possible_moves +=
-                format!("{}:{},", sq_id_to_name(*sq_id), sq_id_to_name(mv.to)).as_ref();
+            let mut res = "".to_owned();
+            let move_to = &match mv.sp_move_type {
+                SpecialMoveType::RegularMove => sq_id_to_name(mv.to),
+                SpecialMoveType::ShortCastle => "O-O".to_owned(),
+                SpecialMoveType::LongCastle => "O-O-O".to_owned(),
+                SpecialMoveType::PromotionToBishop => {
+                    todo!();
+                }
+                SpecialMoveType::PromotionToKnight => {
+                    todo!();
+                }
+                SpecialMoveType::PromotionToQueen => {
+                    todo!();
+                }
+                SpecialMoveType::PromotionToRook => {
+                    todo!();
+                }
+                SpecialMoveType::EnPassantLeft => {
+                    todo!();
+                }
+                SpecialMoveType::EnPassantRight => {
+                    todo!();
+                }
+            };
+            possible_moves += &format!("{}:{},", sq_id_to_name(*sq_id), move_to);
         }
     }
 
