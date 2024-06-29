@@ -319,10 +319,22 @@ impl Position {
             }
             SpecialMoveType::EnPassantLeft => todo!(),
             SpecialMoveType::EnPassantRight => todo!(),
-            SpecialMoveType::PromotionToBishop => todo!(),
-            SpecialMoveType::PromotionToKnight => todo!(),
-            SpecialMoveType::PromotionToRook => todo!(),
-            SpecialMoveType::PromotionToQueen => todo!(),
+            SpecialMoveType::PromotionToBishop => {
+                ally_pieces.pawns ^= u64::nth(mv.to);
+                ally_pieces.bishops |= u64::nth(mv.to);
+            }
+            SpecialMoveType::PromotionToKnight => {
+                ally_pieces.pawns ^= u64::nth(mv.to);
+                ally_pieces.knights |= u64::nth(mv.to);
+            }
+            SpecialMoveType::PromotionToRook => {
+                ally_pieces.pawns ^= u64::nth(mv.to);
+                ally_pieces.rooks |= u64::nth(mv.to);
+            }
+            SpecialMoveType::PromotionToQueen => {
+                ally_pieces.pawns ^= u64::nth(mv.to);
+                ally_pieces.queens |= u64::nth(mv.to);
+            }
         }
         // TODO(implement castling info updates.)
         self.update_info();

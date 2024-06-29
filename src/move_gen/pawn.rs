@@ -3,7 +3,7 @@ use rocket::catcher::Result;
 use super::internal::{self, bitb64_to_moves_list};
 use super::internal::{get_ij_from_sq_id, intersect};
 use super::{BitboardMoveGenerator, MoveGenOpts, MovesMap, PieceAndMoves};
-use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
+use crate::chess::bitboard::{BitArraySize, PlayerBitboard, SpecialMoveType};
 use crate::chess::position::{self, Position, PositionInfo};
 use crate::chess::PlayerColor;
 use crate::chess::{
@@ -87,6 +87,7 @@ fn get_attacking_moves_internal(
             id as u8,
             compute_raw_single_pawn_attacking_moves(enemy_pieces, p_to_move, id),
         );
+
         if resulting_moves.len() > 0 {
             result.insert(
                 id as u8,
@@ -98,6 +99,26 @@ fn get_attacking_moves_internal(
         }
     }
     result
+}
+
+fn add_promotion_moves(moves_list: Vec<BitboardMove>) -> Vec<BitboardMove> {
+    let promotion_types = vec![
+        SpecialMoveType::PromotionToBishop,
+        SpecialMoveType::PromotionToKnight,
+        SpecialMoveType::PromotionToRook,
+        SpecialMoveType::PromotionToQueen,
+    ];
+    let mut promotion_resulting_moves = vec![];
+    for mv in moves_list.iter() {
+        for promotion_type in promotion_types.iter() {
+            promotion_resulting_moves.push(BitboardMove {
+                from: mv.from,
+                to: mv.to,
+                sp_move_type: *promotion_type,
+            })
+        }
+    }
+    promotion_resulting_moves
 }
 
 fn generate_moves_internal(
@@ -114,14 +135,10 @@ fn generate_moves_internal(
         let (i, j) = get_ij_from_sq_id(id);
         println!("Generating moves for pawn at i: {}, j: {}", i, j);
         let mut cur_pawn_moves = EMPTY_BOARD;
-        let last_row = match p_to_move {
-            PlayerColor::White => 7i8,
-            PlayerColor::Black => 0i8,
+        let is_last_row_b4_promotion = match p_to_move {
+            PlayerColor::White => 6i8 == i,
+            PlayerColor::Black => 1i8 == i,
         };
-        if i == last_row {
-            // TODO(gtaumaturgo): implement promotion.
-            continue;
-        }
         let pawns_initial_row = match p_to_move {
             PlayerColor::Black => 6,
             PlayerColor::White => 1,
@@ -133,12 +150,11 @@ fn generate_moves_internal(
         let advance_sq_id = (id + pawn_move_direction * 8) as i8;
         let advance_square = u64::nth(advance_sq_id as u8);
         let double_advance_offset = match p_to_move {
-            PlayerColor::Black => 32, // 64 - (3 << 8)
-            PlayerColor::White => 24, // (3 << 8)
+            PlayerColor::Black => 32, // Row 5
+            PlayerColor::White => 24, // Row 4
         };
         let all_pieces = enemy_pieces.all_pieces() | ally_pieces.all_pieces();
         let piece_in_front = intersect(advance_square, all_pieces);
-
         if !piece_in_front {
             cur_pawn_moves |= advance_square;
             let double_adv_sq = u64::nth((double_advance_offset + j) as u8);
@@ -148,12 +164,15 @@ fn generate_moves_internal(
         }
         cur_pawn_moves |= compute_raw_single_pawn_attacking_moves(enemy_pieces, p_to_move, id);
         let resulting_moves = internal::bitb64_to_moves_list(id as u8, cur_pawn_moves);
-        if resulting_moves.len() != 0 {
+        if resulting_moves.len() > 0 {
             result.insert(
                 id as u8,
                 PieceAndMoves {
                     typpe: PieceType::Pawn,
-                    moves: resulting_moves,
+                    moves: match is_last_row_b4_promotion {
+                        true => add_promotion_moves(resulting_moves),
+                        false => resulting_moves,
+                    },
                 },
             );
         }

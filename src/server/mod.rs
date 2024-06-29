@@ -73,16 +73,16 @@ pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
                 SpecialMoveType::ShortCastle => "O-O".to_owned(),
                 SpecialMoveType::LongCastle => "O-O-O".to_owned(),
                 SpecialMoveType::PromotionToBishop => {
-                    todo!();
+                    format!("{}+=B", sq_id_to_name(mv.to))
                 }
                 SpecialMoveType::PromotionToKnight => {
-                    todo!();
-                }
-                SpecialMoveType::PromotionToQueen => {
-                    todo!();
+                    format!("{}+=K", sq_id_to_name(mv.to))
                 }
                 SpecialMoveType::PromotionToRook => {
-                    todo!();
+                    format!("{}+=R", sq_id_to_name(mv.to))
+                }
+                SpecialMoveType::PromotionToQueen => {
+                    format!("{}+=Q", sq_id_to_name(mv.to))
                 }
                 SpecialMoveType::EnPassantLeft => {
                     todo!();

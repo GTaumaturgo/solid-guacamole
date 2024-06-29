@@ -1,6 +1,11 @@
 import { BoardStateManager } from "./board_state_manager.js"
-import { GetLongClastingSquareforKing, IssuePossibleMovesReq, parsePossibleMoves } from "./client.js"
+import { GetLongClastingSquareforKing, IssuePossibleMovesReq, kPromotionMoveMapEntry, parsePossibleMoves } from "./client.js"
 import { getSquareName, PIECE_DIV_SUFFIX, OVERLAY_DIV_SUFFIX, BLACK_PLAYER, WHITE_PLAYER } from "./common.js"
+
+const kPromoOverlayDivId = "promo-overlay";
+const kPromotionOverlayEnabledClass = "promotion-overlay";
+
+
 
 /** The Controller class is responsible for managing all the DOM*/
 export class Controller {
@@ -23,14 +28,20 @@ export class Controller {
         this.board_state_manager = new BoardStateManager();
 
         /** @type {?string}. The square that is currently selected.*/
-        this.selectedSquare = null;
+        this.selected_square = null;
 
         /** @type {boolean}  Whether the board is flipped. */
         this.flipped = false;
         /** @type {Set<string>}. The set of squares that the current piece can move to. */
-        this.canMoveTo = new Set();
+        this.selected_square_moves = new Set();
+        this.promotion_squares_to_choose = new Set();
+        this.promotion_info = {
+            possible_promotions: new Set(),
+            promotion_choice: { is_happenning: false, promotion_squares_to_choose: new Set(), from_pawn_sq: null, to_pawn_sq: null, color: null },
+        }
         this.to_move = WHITE_PLAYER;
     }
+
 
     /** Flips the `flipped` variable. */
     flip_board() {
@@ -114,14 +125,44 @@ export class Controller {
         this.flip_player_to_move();
     }
 
-
-
     flip_player_to_move() {
         if (this.to_move == WHITE_PLAYER) {
             this.to_move = BLACK_PLAYER;
         } else {
             this.to_move = WHITE_PLAYER;
         }
+    }
+
+    async drawPromotionOverlay(sq, promotion_squares_to_choose, is_white) {
+
+        let promotion_overlay_div = document.getElementById(kPromoOverlayDivId);
+        promotion_overlay_div.setAttribute("class", kPromotionOverlayEnabledClass);
+        if (promotion_squares_to_choose.size != 4) {
+            console.log('error!');
+            return;
+        }
+        let piece_class_prefix = is_white ? 'white-' : 'black-';
+        let piece_types = ['queen', 'rook', 'bishop', 'knight'];
+        let raw_piece_type = ['q', 'r', 'b', 'n']
+        let promo_as_list = Array.from(promotion_squares_to_choose);
+        for (let i = 0; i < 4; i++) {
+            let sq = promo_as_list[i];
+            console.log(sq + PIECE_DIV_SUFFIX + 'promo');
+            let promotion_piece_sq_div = document.getElementById(sq + PIECE_DIV_SUFFIX + 'promo');
+            promotion_piece_sq_div.dataset.piece = piece_types[i];
+            promotion_piece_sq_div.dataset.color = is_white ? 'white' : 'black';
+
+            let final_raw_type = is_white ? raw_piece_type[i] : raw_piece_type[i].toUpperCase();
+            promotion_piece_sq_div.dataset.final_raw_type = final_raw_type;
+
+            promotion_piece_sq_div.classList.add(piece_class_prefix + piece_types[i]);
+            promotion_piece_sq_div.addEventListener('click', promote);
+        }
+    }
+
+    async ExecutePromotion() {
+        console.log('ExecutePromotion not implemented!!');
+
     }
 
     async SelectSquare(row, column) {
@@ -131,23 +172,27 @@ export class Controller {
         if (!this.getCurPosition().hasPieceAt(row, column)) return;
 
         let square_as_str = getSquareName(row, column);
-        this.selectedSquare = square_as_str;
+        this.selected_square = square_as_str;
         let movesMap = await this.getCurPosition().movesMap();
         // console.log(this.getCurPosition());
         // console.log(movesMap);
         // console.log(moves);
         let moves = movesMap.get(square_as_str);
+        let promotions_set = movesMap.get(kPromotionMoveMapEntry);
         if (typeof moves !== "undefined") {
             moves.forEach((sq) => {
-                this.canMoveTo.add(sq);
+                this.selected_square_moves.add(sq);
                 this.drawOverlay(sq);
+                if (promotions_set.has(sq)) {
+                    this.promotion_info.possible_promotions.add(sq);
+                }
             });
         }
     }
 
     /** Unselects the currently selected square. */
     async UnselectSquare() {
-        if (this.selectedSquare == null) {
+        if (this.selected_square == null) {
             console.log("Unexpectedly tried to unselected square when no square was selected!");
             return;
         }
@@ -155,17 +200,22 @@ export class Controller {
         let movesMap = await this.getCurPosition().movesMap();
         console.log(await this.getCurPosition());
         console.log(movesMap);
-        let moves = movesMap.get(this.selectedSquare);
+        let moves = movesMap.get(this.selected_square);
         console.log(moves);
-        console.log(this.selectedSquare);
+        console.log(this.selected_square);
         if (typeof moves !== "undefined") {
             moves.forEach((sq) => {
                 let sqElem = document.getElementById(sq + OVERLAY_DIV_SUFFIX);
                 sqElem.classList.remove('red-overlay');
             });
         }
-        this.canMoveTo.clear();
-        this.selectedSquare = null;
+        this.promotion_info.possible_promotions.clear();
+        this.promotion_info.promotion_choice.is_happenning = false;
+        this.promotion_info.promotion_choice.from_pawn_sq = null;
+        this.promotion_info.promotion_choice.to_pawn_sq = null;
+
+        this.selected_square_moves.clear();
+        this.selected_square = null;
     }
 
     undrawPieceAtSquare(i, j) {
@@ -177,14 +227,15 @@ export class Controller {
     }
 
     /** Undoes the last move that was made.*/
-    undoMove() {
-        if (this.board_state_manager.length === 0) {
-            return;
-        }
-        this.board_state_manager.pop_state();
-        this.selectedSquare = null;
-        this.canMoveTo.clear();
-    }
+    // undoMove() {
+    //     if (this.board_state_manager.length === 0) {
+    //         return;
+    //     }
+    //     this.board_state_manager.pop_state();
+    //     this.selected_square = null;
+    //     this.selected_square_moves.clear();
+    //     this.promotion_info.possible_promotions.clear();
+    // }
 
     resetGame() {
         /**Resets the game to the starting position. */
@@ -196,16 +247,26 @@ export class Controller {
         return this.board_state_manager.peek();
     }
 
-    gameLoop() {
+
+    StartGame() {
+        // TODO(gtaumaturgo):  stop redrawing the board every
         console.log('game loop');
         var board_div = document.getElementById("chessboard");
-        this.removeAllChildElements(board_div);
         for (var i = 0; i < 8; i++) {
             for (var j = 0; j < 8; j++) {
                 board_div.appendChild(this.createSquareNode(i, j));
                 this.drawPieceAtSquareIfPresent(i, j);
             }
         }
+        var overlay = document.createElement("div");
+        overlay.setAttribute("id", kPromoOverlayDivId);
+        overlay.addEventListener("click", overlayOnClick);
+        for (var i = 0; i < 8; i++) {
+            for (var j = 0; j < 8; j++) {
+                overlay.appendChild(this.createOverlaySquareNode(i, j));
+            }
+        }
+        board_div.appendChild(overlay);
     }
 
     drawPieceAtSquareIfPresent(i, j) {
@@ -231,7 +292,7 @@ export class Controller {
 
     drawOverlay(toName) {
         /** Draws a red circle on the square with the given name.
-         * @param {string} toName The name of the square to draw the circle on. */
+         * @param {string} toName The name of the square to `draw` the circle on. */
         console.log(toName);
         let sqElem = document.getElementById(toName + OVERLAY_DIV_SUFFIX);
         if (sqElem == undefined) {
@@ -245,6 +306,23 @@ export class Controller {
         while (node_div.firstChild) {
             node_div.removeChild(node_div.firstChild);
         }
+    }
+
+    createOverlaySquareNode(i, j) {
+        var piece_div = document.createElement('div');
+        piece_div.setAttribute("id", getSquareName(i, j) + PIECE_DIV_SUFFIX + 'promo');
+        piece_div.setAttribute("class", "promotion-piece-container");
+        var overlay_div = document.createElement('div');
+        overlay_div.setAttribute("id", getSquareName(i, j) + OVERLAY_DIV_SUFFIX + 'promo');
+        // overlay_div.setAttribute("class", "promotion-piece-overlay");
+        var square = document.createElement('div');
+        square.appendChild(piece_div);
+        square.appendChild(overlay_div);
+        square.dataset.row = i;
+        square.dataset.column = j;
+        square.style.gridArea = `${i + 1} / ${j + 1} / ${i + 2} / ${j + 2}`
+        return square;
+
     }
 
     createSquareNode(i, j) {
@@ -286,8 +364,40 @@ export function ControllerInstance() {
         return internal_instance;
     }
 }
+``
 
-// Callback functions for UI Elements
+async function promote(event) {
+    let elem = event.target;
+
+    console.log('executing promotion');
+    let promo_choice = ControllerInstance().promotion_info.promotion_choice;
+    let from_pawn_sq = promo_choice.from_pawn_sq;
+    let to_pawn_sq = promo_choice.to_pawn_sq;
+    ControllerInstance().UnselectSquare();
+
+    let row = ControllerInstance().GetRowFromSquareName(from_pawn_sq);
+    let col = ControllerInstance().GetColumnFromSquareName(from_pawn_sq);
+    ControllerInstance().getCurPosition().setPiece(row, col, elem.dataset.final_raw_type);
+    ControllerInstance().executeMoveFull(from_pawn_sq, to_pawn_sq);
+
+    endPromotionState();
+}
+
+async function endPromotionState() {
+    let promotion_overlay_div = document.getElementById(kPromoOverlayDivId);
+    promotion_overlay_div.setAttribute("class", "");
+    ControllerInstance().promotion_info.promotion_choice.is_happenning = false;
+    ControllerInstance().promotion_info.possible_promotions.clear();
+    ControllerInstance().UnselectSquare();
+}
+
+async function overlayOnClick(event) {
+    let elem = event.target;
+    console.log('executing overlay on click');
+    endPromotionState();
+}
+
+// Callback functions for squares
 async function squareOnClick(event, debug = true) {
     console.log('squareOnClick');
     let elem = event.target;
@@ -299,15 +409,30 @@ async function squareOnClick(event, debug = true) {
     let column = elem.dataset.column;
     let movesMap = await (ControllerInstance().getCurPosition()).movesMap();
     let sq_as_str = getSquareName(row, column);
-    let cur_selected = ControllerInstance().selectedSquare;
+    let cur_selected = ControllerInstance().selected_square;
     if (debug) {
         console.log('currently selected square:' + cur_selected);
         console.log('clicked:' + sq_as_str);
-        console.log(ControllerInstance().canMoveTo);
+        console.log(ControllerInstance().selected_square_moves);
     }
 
-    // Because the `canMoveTo` vector already has only the pieces of the side to move, we don't have to check that.
-    if (cur_selected != null && ControllerInstance().canMoveTo.has(sq_as_str)) {
+    // Because the `selected_square_moves` set already has only the pieces of the side to move, we don't have to check that.
+    if (cur_selected != null && ControllerInstance().selected_square_moves.has(sq_as_str)) {
+        // Instead of executing the move, draw the promotion squares
+        if (ControllerInstance().promotion_info.possible_promotions.has(sq_as_str)) {
+            const is_white = sq_as_str.includes('8');
+            ControllerInstance().promotion_info.promotion_choice.is_happenning = true;
+            ControllerInstance().promotion_info.promotion_choice.from_pawn_sq = ControllerInstance().selected_square;
+            ControllerInstance().promotion_info.promotion_choice.to_pawn_sq = sq_as_str;
+            ControllerInstance().promotion_info.promotion_choice.color = is_white ? 'white' : 'black';
+            const column_letter = sq_as_str.charAt(0);
+            const promotion_squares_for_color = is_white ?
+                new Set([column_letter + '8', column_letter + '7', column_letter + '6', column_letter + '5']) :
+                new Set([column_letter + '1', column_letter + '2', column_letter + '3', column_letter + '4']);
+            ControllerInstance().promotion_info.promotion_choice.promotion_squares_to_choose = promotion_squares_for_color;
+            ControllerInstance().drawPromotionOverlay(sq_as_str, promotion_squares_for_color, is_white);
+            return;
+        }
         ControllerInstance().UnselectSquare();
         // TODO ALSO CHECK ITS THE KING
 

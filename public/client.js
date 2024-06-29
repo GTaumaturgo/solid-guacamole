@@ -1,5 +1,8 @@
 import { numToRow, getSquareName } from "./common.js"
 
+export const kPromotionMoveMapEntry = 'promotion';
+
+
 class UciRequest {
     constructor(board, req_type) {
         this.board = EncodeBoard(board);
@@ -88,22 +91,24 @@ export async function parsePossibleMoves(possibleMoves) {
     for (const move of moves) {
         const from = move.split(':')[0];
         const to = move.split(':')[1];
-        // Reset from movesMap.
+        // Initialize if not.
         if (!moveMap.has(from)) {
             moveMap.set(from, []);
         }
+        if (!moveMap.has(kPromotionMoveMapEntry)) {
+            moveMap.set(kPromotionMoveMapEntry, new Set());
+        }
 
-        console.log('Checking special moves:');
-        console.log(from);
-        console.log(to);
+        // console.log('Checking special moves:');
         if (to == 'O-O') {
-            console.log('detected O-O');
             moveMap.get(from).push(GetShortClastingSquareforKing(from));
         } else if (to == 'O-O-O') {
-            console.log('detected O-O-O');
             moveMap.get(from).push(GetLongCastlingSquareForKing(from));
+        } else if (to.includes('+=')) {
+            const to_sq = to.split('+=')[0];
+            moveMap.get(from).push(to_sq);
+            moveMap.get(kPromotionMoveMapEntry).add(to_sq);
         } else {
-            console.log('regular move');
             moveMap.get(from).push(to);
         }
     }
