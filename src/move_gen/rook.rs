@@ -34,11 +34,11 @@ pub fn compute_single_rook_attacking_moves(
     let mut dir_blockedness = vec![
         false, // up
         false, // down
-        false, // right
+        false, // righ
         false, // left
     ];
     // Try all possible distances (1..7 in all four diagonals):
-    for i in 1..7 {
+    for i in 1..8 {
         // up, down, right, left
         let all_dir_ids = vec![(i0 + i, j0), (i0 - i, j0), (i0, j0 + i), (i0, j0 - i)];
         let mut should_keep_trying = false;

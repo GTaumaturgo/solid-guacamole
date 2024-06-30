@@ -28,7 +28,7 @@ pub fn compute_single_bishop_attacking_moves(
 
     let (i0, j0) = get_ij_from_sq_id(id as i8);
     // Try all possible distances (1..7 in all four diagonals):
-    for i in 1..7 {
+    for i in 1..8 {
         // upleft, upright, downleft, downright
         let all_dir_ids = vec![
             (i0 + i, j0 - i),

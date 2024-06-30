@@ -24,20 +24,7 @@ function EncodeBoard(board) {
 }
 
 
-export async function IssuePossibleMovesReq(board, player_to_move) {
-    console.log("player:", player_to_move)
-    let uci_req = {
-        p_to_move: player_to_move,
-        board: EncodeBoard(board),
-        req_type: "possible_moves",
-        timeout: 3000,
-    }
-    console.log('issuing UCI req:');
-    console.log(uci_req);
-    let uci_response = await IssueUciReq(uci_req);
-    console.log(uci_response);
-    return uci_response.possible_moves;
-}
+
 
 // export function GetInitialSquareForKing()
 
@@ -115,9 +102,31 @@ export async function parsePossibleMoves(possibleMoves) {
     return moveMap;
 }
 
+export async function IssuePossibleMovesReq(board, player_to_move) {
+    let uci_req = {
+        p_to_move: player_to_move,
+        board: EncodeBoard(board),
+        req_type: "possible_moves",
+        timeout: 3000,
+    }
+    let uci_response = await IssueUciReq(uci_req);
+    return uci_response.possible_moves;
+}
+
+export async function IssuePositionEvalReq(board, player_to_move) {
+    let uci_req = {
+        p_to_move: player_to_move,
+        board: EncodeBoard(board),
+        req_type: "pos_eval",
+        timeout: 3000,
+    }
+    let uci_response = await IssueUciReq(uci_req);
+    return uci_response.pos_score;
+}
+
 async function IssueUciReq(uci_req) {
     const url = "http://127.0.0.1:9999";
-    console.log('Sending request to engine..');
+    console.log('Sending request to Server..');
     console.log(uci_req);
 
     let response = await fetch(url, {
@@ -130,7 +139,8 @@ async function IssueUciReq(uci_req) {
         }
     });
     let response_json = await (response.json());
-    console.log('Received valid JSON Response!!:');
+
+    console.log('JSON Response from server!!:');
     console.log(response_json);
     return response_json;
 }

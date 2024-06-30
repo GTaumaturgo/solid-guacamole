@@ -22,7 +22,7 @@ extern crate serde;
 use rocket::{
     fs::FileServer,
     get, post,
-    response::{Redirect, Responder},
+    response::{self, Redirect, Responder},
     routes,
     serde::json::Json,
     Build, Rocket,
@@ -48,6 +48,8 @@ pub struct UciResponse {
     pub best_moves: String,
     #[response(ignore)]
     pub possible_moves: String,
+    #[response(ignore)]
+    pub pos_score: String,
 }
 // ThenChange:
 // JS UciRequest.
@@ -62,17 +64,11 @@ fn engine(wrapped_uci_req: Json<UciRequest>) -> Json<UciResponse> {
     let uci_req = wrapped_uci_req.into_inner();
     let req_type = uci_req.req_type.clone();
     let resp: UciResponse = if req_type == "possible_moves" {
-        server::handle_possible_moves_request(&uci_req)
-    } else if req_type == "best_moves" {
-        UciResponse {
-            best_moves: "qqq".to_string(),
-            possible_moves: "qqq".to_string(),
-        }
+        server::possible_moves::handle_possible_moves_request(&uci_req)
+    } else if req_type == "pos_eval" {
+        server::position_eval::handle_position_eval_request(&uci_req)
     } else {
-        UciResponse {
-            best_moves: "qqq".to_string(),
-            possible_moves: "qqq".to_string(),
-        }
+        todo!()
     };
 
     Json(resp)

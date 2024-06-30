@@ -1,7 +1,10 @@
+use rocket::data;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter; // 0.17.1
 
-#[derive(Clone, Copy)]
+use std::fmt::Display;
+
+#[derive(Debug, EnumIter, PartialEq, Copy, Clone, Eq, Hash, Display)]
 pub enum PlayerColor {
     White,
     Black,
@@ -16,7 +19,7 @@ impl PlayerColor {
     }
 }
 
-#[derive(Debug, EnumIter, PartialEq, Copy, Clone, Eq)]
+#[derive(Debug, EnumIter, PartialEq, Copy, Clone, Eq, Hash, Display)]
 pub enum PieceType {
     Pawn,
     Knight,
