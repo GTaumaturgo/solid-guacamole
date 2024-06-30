@@ -1,4 +1,4 @@
-mod internal;
+pub mod internal;
 
 pub mod bishop;
 pub mod king;
@@ -35,6 +35,7 @@ pub struct PieceAndMoves {
 }
 pub type MovesMap = HashMap<u8, PieceAndMoves>;
 
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum MoveGenPerspective {
     MovingPlayer,
     WaitingPlayer,

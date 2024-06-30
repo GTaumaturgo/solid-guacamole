@@ -221,7 +221,7 @@ impl Position {
         self.position_info.pass_turn();
     }
 
-    pub fn get_raw_attacked_squares_for_waiting_player(&self) -> BitB64 {
+    pub fn get_raw_attacked_squares(&self, perspective: &MoveGenPerspective) -> BitB64 {
         let generators = vec![
             PawnBitboardMoveGenerator::get_raw_attacking_moves,
             KnightBitboardMoveGenerator::get_raw_attacking_moves,
@@ -235,16 +235,11 @@ impl Position {
             result |= generator(
                 &self,
                 MoveGenOpts {
-                    perspective: MoveGenPerspective::WaitingPlayer,
+                    perspective: *perspective,
                 },
             )
         }
         result
-    }
-
-    pub fn get_raw_attacked_squares_for_moving_player(&self) -> BitB64 {
-        // not implemented
-        EMPTY_BOARD
     }
 
     pub fn player_to_move(&self) -> PlayerColor {
@@ -289,13 +284,13 @@ impl Position {
         *piece_set |= u64::nth(to);
     }
 
-    pub fn make_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> &mut Self {
+    pub fn make_move(&self, mv: &BitboardMove, piece: ChessPiece) -> Position {
         // Remove the piece from its old position.
         // gets black or white bitboard
-
+        let mut result = *self;
         let (ally_pieces, mut enemy_pieces) = match piece.color {
-            PlayerColor::White => (&mut self.white, &mut self.black),
-            PlayerColor::Black => (&mut self.black, &mut self.white),
+            PlayerColor::White => (&mut result.white, &mut result.black),
+            PlayerColor::Black => (&mut result.black, &mut result.white),
         };
 
         let piece_set = ally_pieces.mut_pieces(piece.typpe);
@@ -337,28 +332,31 @@ impl Position {
             }
         }
         // TODO(implement castling info updates.)
-        self.update_info();
+        result.update_info();
         // Return mutable reference to self to allow chaining calls.
-        self
+        result
     }
 
-    // Returns whether king of given |color| is in check.
-    pub fn is_check(&self, color: PlayerColor) -> bool {
-        // let own_pieces =
-        // let enemy_pieces =
-        return false;
+    // Returns whether king of given |color| can be capturued.
+    pub fn can_king_be_captured(&self, perspective: MoveGenPerspective) -> bool {
+        let king_pieces = match perspective {
+            MoveGenPerspective::MovingPlayer => self.pieces_to_move(),
+            MoveGenPerspective::WaitingPlayer => &self.enemy_pieces(),
+        };
+        let attacked_squares_perspective = match perspective {
+            MoveGenPerspective::MovingPlayer => MoveGenPerspective::WaitingPlayer,
+            MoveGenPerspective::WaitingPlayer => MoveGenPerspective::MovingPlayer,
+        };
+        crate::move_gen::internal::intersect(
+            king_pieces.king,
+            self.get_raw_attacked_squares(&attacked_squares_perspective),
+        )
     }
 
-    pub fn is_check_after_move(&mut self, mv: &BitboardMove, piece: ChessPiece) -> bool {
-        // Make the mv.
-        let old = *self;
-        self.make_move(mv, piece);
-        let is_check = self.is_check(PlayerColor::other(piece.color));
-        *self = old;
-        return is_check;
+    pub fn move_puts_own_king_in_check(&self, mv: &BitboardMove, piece: ChessPiece) -> bool {
+        let new = self.make_move(mv, piece);
+        new.can_king_be_captured(MoveGenPerspective::WaitingPlayer)
     }
-
-    // pub fn get_
 
     pub fn legal_continuations(&mut self) -> MovesMap {
         let possible_moves_map = self.pseudolegal_continuations();
@@ -367,19 +365,18 @@ impl Position {
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
             let moves_list = &piece_and_moves.moves;
-            // Only keep leag moves in the new vector for each entry.
+            // Only keep legal moves in the new vector for each entry.
             let mut legal_moves = Vec::new();
             for mv in moves_list.iter() {
-                if self.is_check_after_move(
+                if !self.move_puts_own_king_in_check(
                     &mv,
                     ChessPiece {
                         typpe: typpe,
                         color: self.player_to_move(),
                     },
                 ) {
-                    continue;
+                    legal_moves.push(*mv);
                 }
-                legal_moves.push(*mv);
             }
             if legal_moves.len() > 0 {
                 result.insert(

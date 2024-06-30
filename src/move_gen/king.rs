@@ -285,7 +285,7 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
             enemy_pieces,
             p_to_move,
             &pos.position_info,
-            pos.get_raw_attacked_squares_for_waiting_player(),
+            pos.get_raw_attacked_squares(&opts.perspective),
         )
     }
 }
