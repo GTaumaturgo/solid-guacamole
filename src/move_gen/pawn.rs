@@ -133,7 +133,6 @@ fn generate_moves_internal(
         let cur_pawn = u64::nth(id as u8);
         pawn_set ^= cur_pawn;
         let (i, j) = get_ij_from_sq_id(id);
-        println!("Generating moves for pawn at i: {}, j: {}", i, j);
         let mut cur_pawn_moves = EMPTY_BOARD;
         let is_last_row_b4_promotion = match p_to_move {
             PlayerColor::White => 6i8 == i,

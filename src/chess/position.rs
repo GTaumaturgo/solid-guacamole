@@ -358,14 +358,13 @@ impl Position {
         new.can_king_be_captured(MoveGenPerspective::WaitingPlayer)
     }
 
-    pub fn legal_continuations(&mut self) -> MovesMap {
+    pub fn legal_continuations(&self) -> MovesMap {
         let possible_moves_map = self.pseudolegal_continuations();
         let mut result = MovesMap::new();
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
             let typpe = piece_and_moves.typpe;
             let moves_list = &piece_and_moves.moves;
-            // Only keep legal moves in the new vector for each entry.
             let mut legal_moves = Vec::new();
             for mv in moves_list.iter() {
                 if !self.move_puts_own_king_in_check(

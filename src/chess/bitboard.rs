@@ -250,19 +250,14 @@ impl PlayerBitboard {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct BitboardMove {
     pub from: u8,
     pub to: u8,
     pub sp_move_type: SpecialMoveType,
 }
 
-pub struct MoveScore {
-    pub score: i64,
-    // pub confidence: u16,
-    // pub depth: u8,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum SpecialMoveType {
     RegularMove, // Move is not special,
     ShortCastle,
@@ -273,18 +268,4 @@ pub enum SpecialMoveType {
     PromotionToQueen,
     EnPassantLeft,
     EnPassantRight,
-}
-
-// pub struct SpecialMoveMetadata {
-//     pub piece_typpe_for_promotion: PieceType,
-// }
-
-// pub struct SpecialMoveInfo {
-//     pub typpe: SpecialMove,
-//     pub metadata: SpecialMoveMetadata,
-// }
-
-pub struct ScoredMove {
-    pub score: MoveScore,
-    pub mov: BitboardMove,
 }
