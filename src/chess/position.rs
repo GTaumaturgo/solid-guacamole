@@ -1,8 +1,13 @@
 use rocket::log::private::debug;
 
+use super::bitboard::SpecialMoveType;
+use super::zobrist::ZobristTable;
 use crate::chess::bitboard::{
     BitArraySize, BitB64, BitboardMove, PlayerBitboard, EMPTY_BOARD, FULL_BOARD,
 };
+use crate::move_gen::internal::intersect;
+use strum::IntoEnumIterator;
+
 use crate::chess::{ChessPiece, PieceType, PlayerColor};
 use crate::move_gen::{self, MoveGenOpts, MoveGenPerspective};
 use crate::move_gen::{
@@ -12,8 +17,7 @@ use crate::move_gen::{
     MovesMap, PieceAndMoves,
 };
 use crate::UciRequest;
-
-use super::bitboard::SpecialMoveType;
+use rand::{thread_rng, Rng};
 
 pub struct PositionScore {
     pub score: i32,
@@ -36,8 +40,8 @@ pub struct ScoredPosition {
 enum PositionInfoMetadataBits {
     PlayerToMove,
 }
-
-enum CastlingRightsBits {
+#[derive(EnumIter)]
+pub enum CastlingRightsBits {
     WhiteShortCastlingRights,
     WhiteLongCastlingRights,
     BlackShortCastlingRights,
@@ -62,7 +66,7 @@ pub struct PositionInfo {
     // bit 2: unused.
     // ...
     pub metadata: u8,
-    // pub moves_map: Option<MovesMap>,
+    pub zobrist_hash: u64,
 }
 
 impl PositionInfo {
@@ -74,12 +78,15 @@ impl PositionInfo {
             black_usable_en_passant: 0,
             castling_rights: 0,
             metadata: 0,
+            zobrist_hash: 0,
         };
         result
     }
     pub fn pass_turn(&mut self) {
         // Flip bit 0 and 1. 3 = 1 + 2
         self.metadata ^= u8::nth(PositionInfoMetadataBits::PlayerToMove as u8);
+        let table = ZobristTable::get();
+        self.zobrist_hash ^= table.black_to_move;
     }
     pub fn enemy_player(&self) -> PlayerColor {
         if Self::white_to_move(&self) {
@@ -242,6 +249,65 @@ impl Position {
         result
     }
 
+    pub fn compute_zobrist_hash(&mut self) {
+        let table = ZobristTable::get();
+        self.position_info.zobrist_hash = 0;
+
+        // Iterate over all squares
+        let white_pieces = &self.white;
+        let black_pieces = &self.black;
+
+        let mut color_id: usize = 0;
+        for colored_pieces in [white_pieces, black_pieces].iter() {
+            for piece_type in PieceType::iter() {
+                let mut piece_set = *colored_pieces.pieces(piece_type);
+                while piece_set != EMPTY_BOARD {
+                    let id: i8 = piece_set.trailing_zeros() as i8;
+                    self.position_info.zobrist_hash ^=
+                        table.table[piece_type as usize][color_id][id as usize];
+                    piece_set ^= u64::nth(id as u8);
+                }
+            }
+            color_id += 1;
+        }
+        // XOR with random values for castling rights
+        if self
+            .position_info
+            .has_short_castling_rights(PlayerColor::White)
+        {
+            self.position_info.zobrist_hash ^=
+                table.castling_rights[CastlingRightsBits::WhiteShortCastlingRights as usize];
+        }
+        if self
+            .position_info
+            .has_long_castling_rights(PlayerColor::White)
+        {
+            self.position_info.zobrist_hash ^=
+                table.castling_rights[CastlingRightsBits::WhiteLongCastlingRights as usize];
+        }
+        if self
+            .position_info
+            .has_short_castling_rights(PlayerColor::Black)
+        {
+            self.position_info.zobrist_hash ^=
+                table.castling_rights[CastlingRightsBits::BlackShortCastlingRights as usize];
+        }
+        if self
+            .position_info
+            .has_long_castling_rights(PlayerColor::Black)
+        {
+            self.position_info.zobrist_hash ^=
+                table.castling_rights[CastlingRightsBits::BlackLongCastlingRights as usize];
+        }
+
+        // TODO implement enpassant.
+
+        // XOR with random value for side to move
+        if self.player_to_move() == PlayerColor::Black {
+            self.position_info.zobrist_hash ^= table.black_to_move;
+        }
+    }
+
     pub fn player_to_move(&self) -> PlayerColor {
         self.position_info.player_to_move()
     }
@@ -250,10 +316,24 @@ impl Position {
         self.position_info.enemy_player()
     }
 
+    pub fn mut_pieces_to_move(&mut self) -> &mut PlayerBitboard {
+        match self.player_to_move() {
+            PlayerColor::Black => &mut self.black,
+            PlayerColor::White => &mut self.white,
+        }
+    }
+
     pub fn pieces_to_move(&self) -> &PlayerBitboard {
         match self.player_to_move() {
             PlayerColor::Black => &self.black,
             PlayerColor::White => &self.white,
+        }
+    }
+
+    pub fn mut_enemy_pieces(&mut self) -> &mut PlayerBitboard {
+        match self.player_to_move() {
+            PlayerColor::White => &mut self.black,
+            PlayerColor::Black => &mut self.white,
         }
     }
 
@@ -267,21 +347,47 @@ impl Position {
     pub fn update_info(&mut self) {
         self.pass_turn();
     }
-
+    // Returns the zobrist mutation to be applied to the position
     pub fn make_raw_bitboard_move(
         (from, to): (u8, u8),
-        piece_set: &mut BitB64,
-        enemy_pieces: &mut PlayerBitboard,
-    ) -> () {
-        let delete_enemy_pieces_mask = FULL_BOARD ^ u64::nth(to);
-        enemy_pieces.pawns &= delete_enemy_pieces_mask;
-        enemy_pieces.knights &= delete_enemy_pieces_mask;
-        enemy_pieces.bishops &= delete_enemy_pieces_mask;
-        enemy_pieces.rooks &= delete_enemy_pieces_mask;
-        enemy_pieces.queens &= delete_enemy_pieces_mask;
-        enemy_pieces.king &= delete_enemy_pieces_mask;
-        *piece_set ^= u64::nth(from);
-        *piece_set |= u64::nth(to);
+        (moving_player, waiting_player): (PlayerColor, PlayerColor),
+        (moving_pieces, waiting_pieces): (&mut PlayerBitboard, &mut PlayerBitboard),
+        typpe: PieceType,
+    ) -> u64 {
+        let z_table = ZobristTable::get();
+        let mut zobrist_mutation = 0;
+        let to_sq = u64::nth(to);
+        let moving_piece_set = moving_pieces.mut_pieces(typpe);
+        *moving_piece_set ^= u64::nth(from);
+        *moving_piece_set |= to_sq;
+        zobrist_mutation ^= z_table.table[typpe as usize][moving_player as usize][from as usize];
+        zobrist_mutation ^= z_table.table[typpe as usize][moving_player as usize][to as usize];
+
+        let delete_enemy_pieces_mask = FULL_BOARD ^ to_sq;
+        for piece_type in PieceType::iter() {
+            let waiting_piece_set = waiting_pieces.mut_pieces(piece_type);
+            if intersect(*waiting_piece_set, to_sq) {
+                *waiting_piece_set &= delete_enemy_pieces_mask;
+                zobrist_mutation ^=
+                    z_table.table[piece_type as usize][waiting_player as usize][to as usize];
+                break;
+            }
+        }
+
+        zobrist_mutation
+    }
+
+    fn execute_promotion(&mut self, typpe: PieceType, to_sq: u64) -> u64 {
+        let mut zobrist_mutation = 0;
+        let z_table = ZobristTable::get();
+        let piece_set = self.mut_pieces_to_move().mut_pieces(typpe);
+        *piece_set ^= to_sq;
+        self.mut_pieces_to_move().pawns ^= to_sq;
+        zobrist_mutation ^=
+            z_table.table[typpe as usize][self.player_to_move() as usize][to_sq as usize];
+        zobrist_mutation ^=
+            z_table.table[PieceType::Pawn as usize][self.waiting_player() as usize][to_sq as usize];
+        zobrist_mutation
     }
 
     pub fn make_move(&self, mv: &BitboardMove, piece: ChessPiece) -> Position {
@@ -292,43 +398,51 @@ impl Position {
             PlayerColor::White => (&mut result.white, &mut result.black),
             PlayerColor::Black => (&mut result.black, &mut result.white),
         };
-
-        let piece_set = ally_pieces.mut_pieces(piece.typpe);
-        Self::make_raw_bitboard_move((mv.from, mv.to), piece_set, enemy_pieces);
-
+        result.position_info.zobrist_hash ^= Self::make_raw_bitboard_move(
+            (mv.from, mv.to),
+            (self.player_to_move(), self.waiting_player()),
+            (ally_pieces, enemy_pieces),
+            piece.typpe,
+        );
         match mv.sp_move_type {
             SpecialMoveType::RegularMove => (),
             SpecialMoveType::ShortCastle => {
-                let (rook_from, rook_to) =
-                    move_gen::rook::get_rook_move_for_short_castle(piece.color);
-                let rooks = ally_pieces.mut_pieces(PieceType::Rook);
-                Self::make_raw_bitboard_move((rook_from, rook_to), rooks, &mut enemy_pieces);
+                result.position_info.zobrist_hash ^= Self::make_raw_bitboard_move(
+                    move_gen::rook::get_rook_move_for_short_castle(piece.color),
+                    (self.player_to_move(), self.waiting_player()),
+                    (ally_pieces, enemy_pieces),
+                    piece.typpe,
+                );
             }
             SpecialMoveType::LongCastle => {
-                let (rook_from, rook_to) =
-                    move_gen::rook::get_rook_move_for_long_castle(piece.color);
-                let rooks = ally_pieces.mut_pieces(PieceType::Rook);
-                *rooks ^= u64::nth(rook_from);
-                *rooks |= u64::nth(rook_to);
-                Self::make_raw_bitboard_move((rook_from, rook_to), rooks, &mut enemy_pieces);
+                result.position_info.zobrist_hash ^= Self::make_raw_bitboard_move(
+                    move_gen::rook::get_rook_move_for_long_castle(piece.color),
+                    (self.player_to_move(), self.waiting_player()),
+                    (ally_pieces, enemy_pieces),
+                    piece.typpe,
+                );
             }
             SpecialMoveType::EnPassantLeft => todo!(),
             SpecialMoveType::EnPassantRight => todo!(),
             SpecialMoveType::PromotionToBishop => {
-                ally_pieces.pawns ^= u64::nth(mv.to);
-                ally_pieces.bishops |= u64::nth(mv.to);
+                let to_sq = u64::nth(mv.to);
+                result.position_info.zobrist_hash ^=
+                    result.execute_promotion(PieceType::Bishop, to_sq);
             }
             SpecialMoveType::PromotionToKnight => {
-                ally_pieces.pawns ^= u64::nth(mv.to);
-                ally_pieces.knights |= u64::nth(mv.to);
+                let to_sq = u64::nth(mv.to);
+                result.position_info.zobrist_hash ^=
+                    result.execute_promotion(PieceType::Knight, to_sq);
             }
             SpecialMoveType::PromotionToRook => {
-                ally_pieces.pawns ^= u64::nth(mv.to);
-                ally_pieces.rooks |= u64::nth(mv.to);
+                let to_sq = u64::nth(mv.to);
+                result.position_info.zobrist_hash ^=
+                    result.execute_promotion(PieceType::Rook, to_sq);
             }
             SpecialMoveType::PromotionToQueen => {
-                ally_pieces.pawns ^= u64::nth(mv.to);
-                ally_pieces.queens |= u64::nth(mv.to);
+                let to_sq = u64::nth(mv.to);
+                result.position_info.zobrist_hash ^=
+                    result.execute_promotion(PieceType::Queen, to_sq);
             }
         }
         // TODO(implement castling info updates.)
