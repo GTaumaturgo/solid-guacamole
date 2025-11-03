@@ -1,13 +1,10 @@
-use super::internal::{
-    get_ij_from_sq_id, intersect, is_inside_board, try_generate_move_in_direction,
-};
+use super::internal::{get_ij_from_sq_id, try_generate_move_in_direction};
 use super::{internal, MoveGenOpts, MoveGenPerspective};
 use super::{BitboardMoveGenerator, MovesMap, PieceAndMoves};
-use crate::chess::bitboard::{self, BitArraySize, PlayerBitboard};
+use crate::chess::bitboard::{BitArraySize, PlayerBitboard};
 use crate::chess::position::Position;
-use crate::chess::PlayerColor;
 use crate::chess::{
-    bitboard::{BitB64, BitboardMove, EMPTY_BOARD},
+    bitboard::{BitB64, EMPTY_BOARD},
     PieceType,
 };
 
@@ -97,7 +94,7 @@ pub fn get_attacking_moves_as_bishop_internal(
 pub struct BishopBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
-    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -105,7 +102,7 @@ impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
         compute_raw_attacking_moves_as_bishop_internal(ally_pieces, enemy_pieces, PieceType::Bishop)
     }
 
-    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -117,7 +114,7 @@ impl BitboardMoveGenerator for BishopBitboardMoveGenerator {
         )
     }
 
-    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        Self::get_attacking_moves(pos, opts)
+    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts).await
     }
 }

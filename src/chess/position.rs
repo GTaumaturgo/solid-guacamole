@@ -1,5 +1,3 @@
-use rocket::log::private::debug;
-
 use super::bitboard::SpecialMoveType;
 use super::zobrist::ZobristTable;
 use crate::chess::bitboard::{
@@ -16,8 +14,13 @@ use crate::move_gen::{
     queen::QueenBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
     MovesMap, PieceAndMoves,
 };
-use crate::UciRequest;
-use rand::{thread_rng, Rng};
+
+use std::collections::HashMap;
+
+use super::position_cache::CacheEntry;
+
+use crate::{UciRequest, CACHE};
+use std::ops::Deref;
 
 pub struct PositionScore {
     pub score: i32,
@@ -164,11 +167,13 @@ pub struct Position {
 
 impl Position {
     pub fn new() -> Position {
-        Position {
+        let mut result = Position {
             white: PlayerBitboard::new(PlayerColor::White),
             black: PlayerBitboard::new(PlayerColor::Black),
             position_info: PositionInfo::new(),
-        }
+        };
+        result.init_zobrist_hash();
+        result
     }
 
     pub fn decode_pieces(board: &String) -> (PlayerBitboard, PlayerBitboard) {
@@ -217,39 +222,99 @@ impl Position {
         // fill bitboards
         let (white, black) = Self::decode_pieces(&uci_req.board);
 
-        Position {
+        let mut result = Position {
             white: white,
             black: black,
             position_info: pos_info,
-        }
+        };
+        result.init_zobrist_hash();
+        result
     }
 
     pub fn pass_turn(&mut self) -> () {
         self.position_info.pass_turn();
     }
 
-    pub fn get_raw_attacked_squares(&self, perspective: &MoveGenPerspective) -> BitB64 {
-        let generators = vec![
-            PawnBitboardMoveGenerator::get_raw_attacking_moves,
-            KnightBitboardMoveGenerator::get_raw_attacking_moves,
-            BishopBitboardMoveGenerator::get_raw_attacking_moves,
-            RookBitboardMoveGenerator::get_raw_attacking_moves,
-            QueenBitboardMoveGenerator::get_raw_attacking_moves,
-            KingBitboardMoveGenerator::get_raw_attacking_moves,
-        ];
-        let mut result = EMPTY_BOARD;
-        for generator in generators {
-            result |= generator(
-                &self,
-                MoveGenOpts {
-                    perspective: *perspective,
-                },
-            )
+    pub fn hash(&self) -> &u64 {
+        &self.position_info.zobrist_hash
+    }
+
+    pub async fn get_raw_attacked_squares(&self, perspective: &MoveGenPerspective) -> BitB64 {
+        let color = match perspective {
+            MoveGenPerspective::MovingPlayer => self.player_to_move(),
+            MoveGenPerspective::WaitingPlayer => self.waiting_player(),
+        };
+        if let Some(entry) = CACHE.get(self.hash()) {
+            if let Some(raw_squares) = entry.raw_attacked_squares.get(&(color as usize)) {
+                return *raw_squares;
+            }
         }
+
+        let mut result = EMPTY_BOARD;
+
+        result |= PawnBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+        result |= KnightBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+        result |= BishopBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+        result |= RookBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+        result |= QueenBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+        result |= KingBitboardMoveGenerator::get_raw_attacking_moves(
+            &self,
+            MoveGenOpts {
+                perspective: *perspective,
+            },
+        )
+        .await;
+
+        // TODO impl get or create
+        if !CACHE.contains_key(self.hash()) {
+            CACHE.insert(
+                self.position_info.zobrist_hash,
+                CacheEntry {
+                    scores: HashMap::new(),
+                    raw_attacked_squares: HashMap::new(),
+                    legal_continuations: None,
+                },
+            );
+        }
+        CACHE
+            .get_mut(self.hash())
+            .unwrap()
+            .raw_attacked_squares
+            .insert(color as usize, result);
         result
     }
 
-    pub fn compute_zobrist_hash(&mut self) {
+    pub fn init_zobrist_hash(&mut self) {
         let table = ZobristTable::get();
         self.position_info.zobrist_hash = 0;
 
@@ -377,16 +442,17 @@ impl Position {
         zobrist_mutation
     }
 
-    fn execute_promotion(&mut self, typpe: PieceType, to_sq: u64) -> u64 {
+    fn execute_promotion(&mut self, typpe: PieceType, to_sq_id: u8) -> u64 {
+        let to_sq = u64::nth(to_sq_id);
         let mut zobrist_mutation = 0;
         let z_table = ZobristTable::get();
         let piece_set = self.mut_pieces_to_move().mut_pieces(typpe);
         *piece_set ^= to_sq;
         self.mut_pieces_to_move().pawns ^= to_sq;
         zobrist_mutation ^=
-            z_table.table[typpe as usize][self.player_to_move() as usize][to_sq as usize];
-        zobrist_mutation ^=
-            z_table.table[PieceType::Pawn as usize][self.waiting_player() as usize][to_sq as usize];
+            z_table.table[typpe as usize][self.player_to_move() as usize][to_sq_id as usize];
+        zobrist_mutation ^= z_table.table[PieceType::Pawn as usize][self.waiting_player() as usize]
+            [to_sq_id as usize];
         zobrist_mutation
     }
 
@@ -394,7 +460,7 @@ impl Position {
         // Remove the piece from its old position.
         // gets black or white bitboard
         let mut result = *self;
-        let (ally_pieces, mut enemy_pieces) = match piece.color {
+        let (ally_pieces, enemy_pieces) = match piece.color {
             PlayerColor::White => (&mut result.white, &mut result.black),
             PlayerColor::Black => (&mut result.black, &mut result.white),
         };
@@ -425,24 +491,20 @@ impl Position {
             SpecialMoveType::EnPassantLeft => todo!(),
             SpecialMoveType::EnPassantRight => todo!(),
             SpecialMoveType::PromotionToBishop => {
-                let to_sq = u64::nth(mv.to);
                 result.position_info.zobrist_hash ^=
-                    result.execute_promotion(PieceType::Bishop, to_sq);
+                    result.execute_promotion(PieceType::Bishop, mv.to);
             }
             SpecialMoveType::PromotionToKnight => {
-                let to_sq = u64::nth(mv.to);
                 result.position_info.zobrist_hash ^=
-                    result.execute_promotion(PieceType::Knight, to_sq);
+                    result.execute_promotion(PieceType::Knight, mv.to);
             }
             SpecialMoveType::PromotionToRook => {
-                let to_sq = u64::nth(mv.to);
                 result.position_info.zobrist_hash ^=
-                    result.execute_promotion(PieceType::Rook, to_sq);
+                    result.execute_promotion(PieceType::Rook, mv.to);
             }
             SpecialMoveType::PromotionToQueen => {
-                let to_sq = u64::nth(mv.to);
                 result.position_info.zobrist_hash ^=
-                    result.execute_promotion(PieceType::Queen, to_sq);
+                    result.execute_promotion(PieceType::Queen, mv.to);
             }
         }
         // TODO(implement castling info updates.)
@@ -452,7 +514,7 @@ impl Position {
     }
 
     // Returns whether king of given |color| can be capturued.
-    pub fn can_king_be_captured(&self, perspective: MoveGenPerspective) -> bool {
+    pub async fn can_king_be_captured(&self, perspective: MoveGenPerspective) -> bool {
         let king_pieces = match perspective {
             MoveGenPerspective::MovingPlayer => self.pieces_to_move(),
             MoveGenPerspective::WaitingPlayer => &self.enemy_pieces(),
@@ -463,17 +525,27 @@ impl Position {
         };
         crate::move_gen::internal::intersect(
             king_pieces.king,
-            self.get_raw_attacked_squares(&attacked_squares_perspective),
+            self.get_raw_attacked_squares(&attacked_squares_perspective)
+                .await,
         )
     }
 
-    pub fn move_puts_own_king_in_check(&self, mv: &BitboardMove, piece: ChessPiece) -> bool {
+    pub async fn move_puts_own_king_in_check(&self, mv: &BitboardMove, piece: ChessPiece) -> bool {
         let new = self.make_move(mv, piece);
         new.can_king_be_captured(MoveGenPerspective::WaitingPlayer)
+            .await
     }
 
-    pub fn legal_continuations(&self) -> MovesMap {
-        let possible_moves_map = self.pseudolegal_continuations();
+    pub async fn legal_continuations(&self) -> MovesMap {
+        if let Some(entry) = CACHE.get(self.hash()) {
+            if let Some(result) = entry.legal_continuations.clone() {
+                // println!("    legal cont: key {}", self.hash());
+                // panic!();
+                return result;
+            }
+        }
+        // println!("Cache Miss!");
+        let possible_moves_map = self.pseudolegal_continuations().await;
         let mut result = MovesMap::new();
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
@@ -481,13 +553,16 @@ impl Position {
             let moves_list = &piece_and_moves.moves;
             let mut legal_moves = Vec::new();
             for mv in moves_list.iter() {
-                if !self.move_puts_own_king_in_check(
-                    &mv,
-                    ChessPiece {
-                        typpe: typpe,
-                        color: self.player_to_move(),
-                    },
-                ) {
+                if !self
+                    .move_puts_own_king_in_check(
+                        &mv,
+                        ChessPiece {
+                            typpe: typpe,
+                            color: self.player_to_move(),
+                        },
+                    )
+                    .await
+                {
                     legal_moves.push(*mv);
                 }
             }
@@ -501,32 +576,91 @@ impl Position {
                 );
             }
         }
+        if !CACHE.contains_key(self.hash()) {
+            CACHE.insert(
+                *self.hash(),
+                CacheEntry {
+                    scores: HashMap::new(),
+                    raw_attacked_squares: HashMap::new(),
+                    legal_continuations: None,
+                },
+            );
+        }
+        CACHE.get_mut(self.hash()).unwrap().legal_continuations = Some(result.clone());
         result
     }
 
-    pub fn pseudolegal_continuations(&self) -> MovesMap {
+    pub async fn pseudolegal_continuations(&self) -> MovesMap {
         let mut result = MovesMap::new();
 
-        let piece_generators = vec![
-            PawnBitboardMoveGenerator::generate_moves,
-            KnightBitboardMoveGenerator::generate_moves,
-            BishopBitboardMoveGenerator::generate_moves,
-            RookBitboardMoveGenerator::generate_moves,
-            QueenBitboardMoveGenerator::generate_moves,
-            KingBitboardMoveGenerator::generate_moves,
-        ];
-
-        for generate_moves in piece_generators.iter() {
-            merge_moves_map(
-                generate_moves(
-                    &self,
-                    MoveGenOpts {
-                        perspective: MoveGenPerspective::MovingPlayer,
-                    },
-                ),
-                &mut result,
-            );
-        }
+        // to make this a for, we need to make the MoveGenerator into an enum
+        // = help: the following types implement the trait, consider defining an enum where each variant holds one of these types, implementing `BitboardMoveGenerator` for this new enum and using it instead:
+        // move_gen::bishop::BishopBitboardMoveGenerator
+        // move_gen::king::KingBitboardMoveGenerator
+        // move_gen::knight::KnightBitboardMoveGenerator
+        // move_gen::pawn::PawnBitboardMoveGenerator
+        // move_gen::queen::QueenBitboardMoveGenerator
+        // move_gen::rook::RookBitboardMoveGenerator
+        merge_moves_map(
+            PawnBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
+        merge_moves_map(
+            KnightBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
+        merge_moves_map(
+            BishopBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
+        merge_moves_map(
+            RookBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
+        merge_moves_map(
+            QueenBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
+        merge_moves_map(
+            KingBitboardMoveGenerator::generate_moves(
+                &self,
+                MoveGenOpts {
+                    perspective: MoveGenPerspective::MovingPlayer,
+                },
+            )
+            .await,
+            &mut result,
+        );
 
         result
     }

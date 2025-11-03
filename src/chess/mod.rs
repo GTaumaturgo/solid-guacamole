@@ -1,8 +1,4 @@
-use rocket::data;
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter; // 0.17.1
-
-use std::fmt::Display;
 
 #[derive(Debug, EnumIter, PartialEq, Copy, Clone, Eq, Hash, Display)]
 pub enum PlayerColor {
@@ -37,4 +33,5 @@ pub struct ChessPiece {
 
 pub mod bitboard;
 pub mod position;
+pub mod position_cache;
 pub mod zobrist;

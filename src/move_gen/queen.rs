@@ -1,17 +1,17 @@
 use super::{bishop, rook, MoveGenOpts, MoveGenPerspective};
 use super::{
     bishop::BishopBitboardMoveGenerator, rook::RookBitboardMoveGenerator, BitboardMoveGenerator,
-    MovesMap, PieceAndMoves,
+    MovesMap,
 };
 
-use crate::chess::bitboard::{BitArraySize, BitB64, BitboardMove, EMPTY_BOARD};
+use crate::chess::bitboard::BitB64;
 use crate::chess::position::{self, Position};
 use crate::chess::PieceType;
 
 pub struct QueenBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
-    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -23,7 +23,7 @@ impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
         ) | rook::compute_raw_attacking_moves_as_rook(ally_pieces, enemy_pieces, PieceType::Queen)
     }
 
-    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -40,7 +40,7 @@ impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
         result
     }
 
-    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        Self::get_attacking_moves(pos, opts)
+    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts).await
     }
 }

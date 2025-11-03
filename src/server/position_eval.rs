@@ -1,4 +1,4 @@
-use rocket::figment::providers::Format;
+use rocket::{figment::providers::Format, State};
 
 use crate::{
     chess::{
@@ -14,22 +14,22 @@ use crate::evaluation::material_evaluator::MaterialEvaluator;
 use crate::evaluation::piece_coordinate_evaluator::PieceCoordinateEvaluator;
 use crate::evaluation::search_evaluator::MinimaxSearchEvaluator;
 
-use crate::evaluation::{PositionEvaluationPipeline, PositionEvaluator};
+use crate::evaluation::{PositionEvaluationPipeline, PositionEvaluator, PositionEvaluatorType};
 
-pub fn handle_position_eval_request(uci_req: &UciRequest) -> UciResponse {
+pub async fn handle_position_eval_request(uci_req: &UciRequest) -> UciResponse {
     let eval_pipeline = PositionEvaluationPipeline {
         evaluators: vec![
-            Box::new(MaterialEvaluator::new()),
-            Box::new(PieceCoordinateEvaluator::new()),
-            Box::new(CheckmateEvaluator {}),
+            PositionEvaluatorType::Material(MaterialEvaluator::new()),
+            PositionEvaluatorType::PieceCoordinate(PieceCoordinateEvaluator::new()),
+            // PositionEvaluatorType::Checkmate(CheckmateEvaluator {}),
         ],
     };
 
     let position = Position::from_uci(uci_req);
 
-    let minimax_evaluator = MinimaxSearchEvaluator::new(Box::new(eval_pipeline), 4);
+    let minimax_evaluator = MinimaxSearchEvaluator::new(eval_pipeline, 4);
 
-    let score = minimax_evaluator.evaluate(&position);
+    let score = minimax_evaluator.evaluate(&position).await;
     UciResponse {
         best_moves: "".to_string(),
         possible_moves: "".to_string(),

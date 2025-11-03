@@ -1,12 +1,11 @@
 use crate::chess::bitboard::BitB64;
 use crate::chess::position::Position;
 use crate::chess::PieceType;
-use crate::chess::PlayerColor;
 
 use crate::strum::IntoEnumIterator;
 
 use super::PositionEvaluator;
-use crate::chess::bitboard::{BitArraySize, PlayerBitboard, SpecialMoveType};
+use crate::chess::bitboard::BitArraySize;
 use std::collections::HashMap;
 
 pub struct MaterialEvaluator {
@@ -37,10 +36,8 @@ impl MaterialEvaluator {
         }
         result
     }
-}
 
-impl PositionEvaluator for MaterialEvaluator {
-    fn evaluate(&self, position: &Position) -> i32 {
+    pub async fn evaluate(&self, position: &Position) -> i32 {
         let mut score = 0;
         let (white, black) = (position.white, position.black);
         for piece_type in PieceType::iter() {

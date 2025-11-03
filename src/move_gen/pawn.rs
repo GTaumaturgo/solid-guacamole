@@ -1,10 +1,8 @@
-use rocket::catcher::Result;
-
-use super::internal::{self, bitb64_to_moves_list};
+use super::internal::{self};
 use super::internal::{get_ij_from_sq_id, intersect};
 use super::{BitboardMoveGenerator, MoveGenOpts, MovesMap, PieceAndMoves};
 use crate::chess::bitboard::{BitArraySize, PlayerBitboard, SpecialMoveType};
-use crate::chess::position::{self, Position, PositionInfo};
+use crate::chess::position::Position;
 use crate::chess::PlayerColor;
 use crate::chess::{
     bitboard::{BitB64, BitboardMove, EMPTY_BOARD},
@@ -180,7 +178,7 @@ fn generate_moves_internal(
 }
 
 impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
-    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
@@ -196,7 +194,7 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
         compute_pawn_attacking_moves_internal(ally_pieces, enemy_pieces, p_to_move)
     }
 
-    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
@@ -212,7 +210,7 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
         get_attacking_moves_internal(ally_pieces, enemy_pieces, p_to_move)
     }
 
-    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),

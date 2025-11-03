@@ -16,20 +16,24 @@ extern crate strum_macros;
 extern crate rocket;
 extern crate serde;
 
+use chess::position_cache::CacheEntry;
+use dashmap::DashMap;
 use rocket::{
     fs::FileServer,
     get, post,
     response::{self, Redirect, Responder},
     routes,
     serde::json::Json,
-    Build, Rocket,
+    Build, Rocket, State,
 };
 
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::sync::RwLock;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
-// IfChange:
+
 pub struct UciRequest {
     pub p_to_move: String,
     pub board: String,
@@ -48,22 +52,23 @@ pub struct UciResponse {
     #[response(ignore)]
     pub pos_score: String,
 }
-// ThenChange:
-// JS UciRequest.
 
 #[get("/")]
 fn index() -> Redirect {
     Redirect::to("/public/chess.html")
 }
+lazy_static! {
+    pub static ref CACHE: DashMap<u64, CacheEntry> = DashMap::default();
+}
 
 #[post("/", format = "json", data = "<wrapped_uci_req>")]
-fn engine(wrapped_uci_req: Json<UciRequest>) -> Json<UciResponse> {
+async fn engine(wrapped_uci_req: Json<UciRequest>) -> Json<UciResponse> {
     let uci_req = wrapped_uci_req.into_inner();
     let req_type = uci_req.req_type.clone();
     let resp: UciResponse = if req_type == "possible_moves" {
-        server::possible_moves::handle_possible_moves_request(&uci_req)
+        server::possible_moves::handle_possible_moves_request(&uci_req).await
     } else if req_type == "pos_eval" {
-        server::position_eval::handle_position_eval_request(&uci_req)
+        server::position_eval::handle_position_eval_request(&uci_req).await
     } else {
         todo!()
     };

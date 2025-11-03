@@ -1,5 +1,5 @@
 import { BoardStateManager } from "./board_state_manager.js"
-import { GetLongClastingSquareforKing, IssuePossibleMovesReq, kPromotionMoveMapEntry, parsePossibleMoves } from "./client.js"
+import { GetLongCastlingSquareforKing, IssuePossibleMovesReq, kPromotionMoveMapEntry, parsePossibleMoves } from "./client.js"
 import { getSquareName, PIECE_DIV_SUFFIX, OVERLAY_DIV_SUFFIX, BLACK_PLAYER, WHITE_PLAYER } from "./common.js"
 
 const kPromoOverlayDivId = "promo-overlay";

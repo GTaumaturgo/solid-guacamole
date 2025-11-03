@@ -28,13 +28,13 @@ function EncodeBoard(board) {
 
 // export function GetInitialSquareForKing()
 
-export function GetLongClastingSquareforKing(from) {
+export function GetLongCastlingSquareforKing(from) {
     if (from == 'E1') {
         return 'C1';
     } else if (from == 'E8') {
         return 'C8';
     } else {
-        console.log('ERROR: Invalid State in GetLongClastingSquareforKing');
+        console.log('ERROR: Invalid State in GetLongCastlingSquareforKing');
         return null;
     }
 }
@@ -45,7 +45,7 @@ export function GetLongClastingSquareforKing(from) {
 //     } else if (from == 'E8') {
 //         return 'C8';
 //     } else {
-//         console.log('ERROR: Invalid State in GetLongClastingSquareforKing');
+//         console.log('ERROR: Invalid State in GetLongCastlingSquareforKing');
 //         return null;
 //     }
 // }
@@ -54,13 +54,13 @@ export function GetLongClastingSquareforKing(from) {
 //     return king_from == 'E1' ? 'D1' : 'D8';
 // }
 
-export function GetShortClastingSquareforKing(from) {
+export function GetShortCastlingSquareforKing(from) {
     if (from == 'E1') {
         return 'G1';
     } else if (from == 'E8') {
         return 'G8';
     } else {
-        console.log('ERROR: Invalid State in GetShortClastingSquareforKing');
+        console.log('ERROR: Invalid State in GetShortCastlingSquareforKing');
         return null;
     }
 }
@@ -88,7 +88,7 @@ export async function parsePossibleMoves(possibleMoves) {
 
         // console.log('Checking special moves:');
         if (to == 'O-O') {
-            moveMap.get(from).push(GetShortClastingSquareforKing(from));
+            moveMap.get(from).push(GetShortCastlingSquareforKing(from));
         } else if (to == 'O-O-O') {
             moveMap.get(from).push(GetLongCastlingSquareForKing(from));
         } else if (to.includes('+=')) {

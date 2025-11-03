@@ -35,7 +35,7 @@ pub fn sq_id_to_name(sq_id: u8) -> String {
     format!("{}{}", col_to_str(col), row_to_str(row))
 }
 
-pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
+pub async fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
     println!("possible moves request");
     println!("Received board from UCI Req");
     println!("{}", uci_req.board);
@@ -62,7 +62,7 @@ pub fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse {
             _ => (),
         }
     }
-    let continuations_map = position.legal_continuations();
+    let continuations_map = position.legal_continuations().await;
     let mut possible_moves: String = "".to_owned();
     for (sq_id, piece_n_moves) in continuations_map.iter() {
         let cur_piece_moves = &piece_n_moves.moves;

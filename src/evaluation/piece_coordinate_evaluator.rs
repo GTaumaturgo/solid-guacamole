@@ -3,7 +3,6 @@ use crate::chess::position::Position;
 use crate::chess::PieceType;
 use crate::chess::PlayerColor;
 
-use super::PositionEvaluator;
 use crate::chess::bitboard::{BitArraySize, PlayerBitboard, SpecialMoveType};
 use crate::strum::IntoEnumIterator;
 use std::collections::HashMap;
@@ -219,10 +218,8 @@ impl PieceCoordinateEvaluator {
         }
         result
     }
-}
 
-impl PositionEvaluator for PieceCoordinateEvaluator {
-    fn evaluate(&self, position: &Position) -> i32 {
+    pub async fn evaluate(&self, position: &Position) -> i32 {
         let mut score = 0;
 
         let (white, black) = (position.white, position.black);

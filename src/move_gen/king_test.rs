@@ -1,10 +1,5 @@
-use super::{
-    internal::test_utils::{self, *},
-    king, Position,
-};
+use super::internal::test_utils::{self, *};
 use crate::move_gen::{king::KingBitboardMoveGenerator, BitboardMoveGenerator};
-
-use std::collections::HashMap;
 
 #[test]
 fn test_initial_pos() {

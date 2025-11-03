@@ -1,5 +1,3 @@
-use crate::move_gen::knight;
-
 use super::{PieceType, PlayerColor};
 
 pub const NUM_SQUARES: usize = 64;

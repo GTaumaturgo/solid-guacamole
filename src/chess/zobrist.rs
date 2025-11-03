@@ -7,6 +7,22 @@ use super::{PieceType, PlayerColor}; // Make sure you have this for iterating ov
 static mut ZOBRIST_TABLE: Option<ZobristTable> = None;
 static INIT: Once = Once::new();
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct ZobristHash(u64); // Newtype wrapper around u64
+
+// impl ZobristHash {
+//     pub fn new(hash: u64) -> Self {
+//         Self(hash)
+//     }
+// }
+
+// // Implement Hash trait for ZobristHash
+// impl Hash for ZobristHash {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.0.hash(state); // Hash the underlying u64 value
+//     }
+// }
+
 pub struct ZobristTable {
     pub table: [[[u64; 64]; 2]; 6], // PieceType * PlayerColor * Square
     pub castling_rights: [u64; 4],  // Castling rights
