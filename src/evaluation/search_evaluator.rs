@@ -1,7 +1,7 @@
 use crate::chess::bitboard::BitB64;
 use crate::chess::position;
 use crate::chess::position::Position;
-use crate::chess::position_cache::CacheEntry;
+use crate::chess::position_cache::{CacheEntry, ScoreType};
 use crate::chess::ChessPiece;
 use crate::chess::PieceType;
 use crate::chess::PlayerColor;
@@ -42,35 +42,21 @@ impl MinimaxSearchEvaluator {
         mut alpha: i32,
         mut beta: i32,
     ) -> (i32, i32) {
+        let initial_alpha = alpha;
         if remaining_depth == 0 {
-            if let Some(entry) = CACHE.get(position.hash()) {
-                if let Some(score) = (*entry).scores.get(&0) {
-                    // println!("leeaf cache hit");
-                    return (*score, 1);
-                }
-            }
-            let evaluation = self.leaf_evaluator.evaluate(position).await;
-            if !CACHE.contains_key(position.hash()) {
-                CACHE.insert(
-                    *position.hash(),
-                    CacheEntry {
-                        scores: HashMap::new(),
-                        raw_attacked_squares: HashMap::new(),
-                        legal_continuations: None,
-                    },
-                );
-            };
-            CACHE
-                .get_mut(position.hash())
-                .unwrap()
-                .scores
-                .insert(0, evaluation);
-            return (evaluation, 1);
+            let score = self.leaf_evaluator.evaluate(position).await;
+            return (score, 1);
         }
         if let Some(entry) = CACHE.get(position.hash()) {
-            if let Some(score) = (*entry).scores.get(&(remaining_depth as usize)) {
-                // println!("non-leeaf cache hit");
-                return (*score, 1);
+            if entry.depth >= remaining_depth {
+                match entry.score_type {
+                    ScoreType::Exact => return (entry.score, 1),
+                    ScoreType::LowerBound => alpha = alpha.max(entry.score),
+                    ScoreType::UpperBound => beta = beta.min(entry.score),
+                }
+                if alpha >= beta {
+                    return (entry.score, 1);
+                }
             }
         }
         let moving_player = position.player_to_move();
@@ -108,21 +94,21 @@ impl MinimaxSearchEvaluator {
                 }
             }
         }
-        if !CACHE.contains_key(position.hash()) {
-            CACHE.insert(
-                *position.hash(),
-                CacheEntry {
-                    scores: HashMap::new(),
-                    raw_attacked_squares: HashMap::new(),
-                    legal_continuations: None,
-                },
-            );
+        let score_type = if best_score <= initial_alpha {
+            ScoreType::UpperBound
+        } else if best_score >= beta {
+            ScoreType::LowerBound
+        } else {
+            ScoreType::Exact
         };
-        CACHE
-            .get_mut(position.hash())
-            .unwrap()
-            .scores
-            .insert(remaining_depth as usize, best_score);
+        CACHE.insert(
+            *position.hash(),
+            CacheEntry {
+                depth: remaining_depth,
+                score: best_score,
+                score_type,
+            },
+        );
         (best_score, total_nodes_explored)
     }
 }
@@ -130,22 +116,22 @@ impl MinimaxSearchEvaluator {
 pub struct MoveScore {
     pub score: i32,
     pub depth: u8,
-    // pub confidence: u16,
 }
 
 impl MinimaxSearchEvaluator {
     pub async fn evaluate(&self, position: &Position) -> i32 {
         let start = Instant::now();
-        // let test = (self.minimax(position, self.depth, i32::MIN, i32::MAX)).await;
         let (score, nodes_explored) = self.minimax(position, self.depth, i32::MIN, i32::MAX).await;
         println!("Nodes explored: {}", nodes_explored);
         println!("Score: {}", score);
         let duration = start.elapsed();
         println!("Duration: {:?}", duration);
-        println!(
-            "microsseconds per node: {}",
-            duration.as_micros() / nodes_explored as u128
-        );
+        if nodes_explored > 0 {
+            println!(
+                "microseconds per node: {}",
+                duration.as_micros() / nodes_explored as u128
+            );
+        }
         score
     }
 }
