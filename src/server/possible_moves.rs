@@ -62,7 +62,7 @@ pub async fn handle_possible_moves_request(uci_req: &UciRequest) -> UciResponse 
             _ => (),
         }
     }
-    let continuations_map = position.legal_continuations().await;
+    let continuations_map = position.legal_continuations();
     let mut possible_moves: String = "".to_owned();
     for (sq_id, piece_n_moves) in continuations_map.iter() {
         let cur_piece_moves = &piece_n_moves.moves;

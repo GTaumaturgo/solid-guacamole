@@ -11,7 +11,7 @@ use crate::chess::PieceType;
 pub struct QueenBitboardMoveGenerator {}
 
 impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
-    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -23,7 +23,7 @@ impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
         ) | rook::compute_raw_attacking_moves_as_rook(ally_pieces, enemy_pieces, PieceType::Queen)
     }
 
-    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -40,7 +40,7 @@ impl BitboardMoveGenerator for QueenBitboardMoveGenerator {
         result
     }
 
-    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        Self::get_attacking_moves(pos, opts).await
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts)
     }
 }

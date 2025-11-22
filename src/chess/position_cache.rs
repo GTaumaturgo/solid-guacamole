@@ -3,106 +3,89 @@ use crate::CACHE;
 
 use super::bitboard::BitB64;
 use super::PlayerColor;
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum CachedScoreType {
+    Exact,
+    LowerBound,
+    UpperBound,
+}
+
+pub struct CachedScoreInfo {
+    pub score: i32,
+    pub depth: u8,
+}
 pub struct CacheEntry {
-    pub scores: HashMap<usize, i32>, // Scores computed for specific depth.
+    pub scores: HashMap<CachedScoreType, CachedScoreInfo>, // Maps scores by type and then by depth.
     pub legal_continuations: Option<MovesMap>,
     pub raw_attacked_squares: HashMap<usize, BitB64>, // Maps raw attacked squared by color (white = 0, black = 1)
 }
 
-// pub fn get_mut_or_create(key: &u64) -> &mut CacheEntry {
-//     if !CACHE.contains_key(key) {
-//         CACHE.insert(
-//             *key,
-//             CacheEntry {
-//                 scores: HashMap::new(),
-//                 raw_attacked_squares: HashMap::new(),
-//                 legal_continuations: None,
-//             },
-//         );
-//         CACHE.get_mut(key).unwrap()
-//     }
-// }
-// pub struct PositionCache {
-//     pub cache: HashMap<u64, CacheEntry>,
-//     pub max_size: usize,
-// }
+impl CacheEntry {
+    /// Creates a new, empty CacheEntry.
+    pub fn new() -> Self {
+        Self {
+            scores: HashMap::new(),
+            legal_continuations: None,
+            raw_attacked_squares: HashMap::new(),
+        }
+    }
 
-// impl PositionCache {
-//     pub fn new(max_size: usize) -> Self {
-//         Self {
-//             cache: HashMap::new(),
-//             max_size,
-//         }
-//     }
+    /// Gets a reference to a score, if it exists.
+    ///
+    /// This function immutably borrows `self` and returns an `Option`
+    /// containing a reference to the `CachedScoreInfo`.
+    pub fn get_score(&self, score_type: &CachedScoreType) -> Option<&CachedScoreInfo> {
+        self.scores.get(score_type)
+    }
 
-//     fn get_or_create_entry(&mut self, key: u64) -> &mut CacheEntry {
-//         self.cache.entry(key).or_insert_with(|| CacheEntry {
-//             scores: HashMap::new(),
-//             legal_continuations: None,
-//             raw_attacked_squares: HashMap::new(),
-//         })
-//     }
+    /// Updates or inserts a score.
+    ///
+    /// This is a "smart" update. It will only insert or update the score
+    /// if the **new depth is greater than or equal to** the existing depth
+    /// for that score type. This prevents overwriting a deep search
+    /// result with a shallower one.
+    pub fn try_update_score(&mut self, score_type: CachedScoreType, new_score: i32, new_depth: u8) {
+        match self.scores.entry(score_type) {
+            Entry::Occupied(mut entry) => {
+                // Score type already exists, check depth
+                if new_depth >= entry.get().depth {
+                    // New score is from a deeper or equal search, update it
+                    entry.insert(CachedScoreInfo {
+                        score: new_score,
+                        depth: new_depth,
+                    });
+                }
+                // else: Existing score is from a deeper search, so we do nothing
+            }
+            Entry::Vacant(entry) => {
+                // No score of this type exists, insert the new one
+                entry.insert(CachedScoreInfo {
+                    score: new_score,
+                    depth: new_depth,
+                });
+            }
+        }
+    }
 
-//     pub fn add_score(&mut self, key: u64, score: i32, depth: u8) {
-//         let entry = self.get_or_create_entry(key);
-//         entry.scores.insert(depth as usize, score);
-//     }
+    /// A simple insert function that **always** overwrites the existing score.
+    /// You might prefer this if you don't need the depth-checking logic.
+    pub fn insert_score(
+        &mut self,
+        score_type: CachedScoreType,
+        score: i32,
+        depth: u8,
+    ) -> Option<CachedScoreInfo> {
+        self.scores
+            .insert(score_type, CachedScoreInfo { score, depth })
+    }
+}
 
-//     pub fn get_score(&self, key: u64, depth: u8) -> Option<i32> {
-//         self.cache.get(&key).and_then(|entry| {
-//             entry
-//                 .scores
-//                 .get(&(depth as usize))
-//                 .and_then(|score| Some(*score))
-//         })
-//     }
+// --- Required for `or_default()` on DashMap ---
 
-//     pub fn add_legal_continuations(&mut self, key: u64, legal_continuations: &MovesMap) {
-//         let entry = self.get_or_create_entry(key);
-//         entry.legal_continuations = Some(legal_continuations.clone());
-//     }
-
-//     pub fn get_legal_continuations(&self, key: u64) -> Option<&MovesMap> {
-//         self.cache
-//             .get(&key)
-//             .and_then(|entry| entry.legal_continuations.as_ref())
-//     }
-
-//     pub fn add_raw_attacked_squares(
-//         &mut self,
-//         key: u64,
-//         color: PlayerColor,
-//         raw_attacked_squares: BitB64,
-//     ) {
-//         let entry = self.get_or_create_entry(key);
-//         entry
-//             .raw_attacked_squares
-//             .insert(color as usize, raw_attacked_squares);
-//     }
-
-//     pub fn get_raw_attacked_squares(&self, key: u64, color: PlayerColor) -> Option<&BitB64> {
-//         self.cache.get(&key).and_then(|entry| {
-//             entry
-//                 .raw_attacked_squares
-//                 .get(&(color as usize))
-//                 .and_then(|raw_attacked_squares| Some(raw_attacked_squares))
-//         })
-//     }
-// }
-
-// pub struct PositionCacheManager {
-//     pub singleton: PositionCache,
-// }
-
-// impl PositionCacheManager {
-//     pub fn new(max_size: usize) -> Self {
-//         Self {
-//             singleton: PositionCache::new(max_size),
-//         }
-//     }
-
-//     pub fn get_mut(&mut self) -> &mut PositionCache {
-//         &mut self.singleton
-//     }
-// }
+impl Default for CacheEntry {
+    fn default() -> Self {
+        Self::new()
+    }
+}

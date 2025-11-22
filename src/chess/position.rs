@@ -22,6 +22,8 @@ use super::position_cache::CacheEntry;
 use crate::{UciRequest, CACHE};
 use std::ops::Deref;
 
+// --- All struct definitions are unchanged ---
+
 pub struct PositionScore {
     pub score: i32,
     // 0 by default. Different than 0 means that the position is a mate in x moves.
@@ -71,6 +73,8 @@ pub struct PositionInfo {
     pub metadata: u8,
     pub zobrist_hash: u64,
 }
+
+// --- `impl PositionInfo` is unchanged (was already synchronous) ---
 
 impl PositionInfo {
     pub fn new() -> PositionInfo {
@@ -166,6 +170,8 @@ pub struct Position {
 }
 
 impl Position {
+    // --- All synchronous functions like `new`, `decode_pieces`, etc. are unchanged ---
+
     pub fn new() -> Position {
         let mut result = Position {
             white: PlayerBitboard::new(PlayerColor::White),
@@ -239,7 +245,8 @@ impl Position {
         &self.position_info.zobrist_hash
     }
 
-    pub async fn get_raw_attacked_squares(&self, perspective: &MoveGenPerspective) -> BitB64 {
+    // --- REMOVED `async` and `.await` ---
+    pub fn get_raw_attacked_squares(&self, perspective: &MoveGenPerspective) -> BitB64 {
         let color = match perspective {
             MoveGenPerspective::MovingPlayer => self.player_to_move(),
             MoveGenPerspective::WaitingPlayer => self.waiting_player(),
@@ -257,43 +264,37 @@ impl Position {
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
         result |= KnightBitboardMoveGenerator::get_raw_attacking_moves(
             &self,
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
         result |= BishopBitboardMoveGenerator::get_raw_attacking_moves(
             &self,
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
         result |= RookBitboardMoveGenerator::get_raw_attacking_moves(
             &self,
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
         result |= QueenBitboardMoveGenerator::get_raw_attacking_moves(
             &self,
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
         result |= KingBitboardMoveGenerator::get_raw_attacking_moves(
             &self,
             MoveGenOpts {
                 perspective: *perspective,
             },
-        )
-        .await;
+        );
 
         // TODO impl get or create
         if !CACHE.contains_key(self.hash()) {
@@ -313,6 +314,8 @@ impl Position {
             .insert(color as usize, result);
         result
     }
+
+    // --- `init_zobrist_hash` and other sync functions unchanged ---
 
     pub fn init_zobrist_hash(&mut self) {
         let table = ZobristTable::get();
@@ -477,7 +480,7 @@ impl Position {
                     move_gen::rook::get_rook_move_for_short_castle(piece.color),
                     (self.player_to_move(), self.waiting_player()),
                     (ally_pieces, enemy_pieces),
-                    piece.typpe,
+                    piece.typpe, // This should probably be PieceType::Rook
                 );
             }
             SpecialMoveType::LongCastle => {
@@ -485,7 +488,7 @@ impl Position {
                     move_gen::rook::get_rook_move_for_long_castle(piece.color),
                     (self.player_to_move(), self.waiting_player()),
                     (ally_pieces, enemy_pieces),
-                    piece.typpe,
+                    piece.typpe, // This should probably be PieceType::Rook
                 );
             }
             SpecialMoveType::EnPassantLeft => todo!(),
@@ -513,39 +516,41 @@ impl Position {
         result
     }
 
-    // Returns whether king of given |color| can be capturued.
-    pub async fn can_king_be_captured(&self, perspective: MoveGenPerspective) -> bool {
+    // --- REMOVED `async` and `.await` ---
+    // Returns whether king of given |color| can be captured.
+    pub fn can_king_be_captured(&self, perspective: MoveGenPerspective) -> bool {
         let king_pieces = match perspective {
             MoveGenPerspective::MovingPlayer => self.pieces_to_move(),
             MoveGenPerspective::WaitingPlayer => &self.enemy_pieces(),
-        };
+        }
+        .king;
         let attacked_squares_perspective = match perspective {
             MoveGenPerspective::MovingPlayer => MoveGenPerspective::WaitingPlayer,
             MoveGenPerspective::WaitingPlayer => MoveGenPerspective::MovingPlayer,
         };
         crate::move_gen::internal::intersect(
-            king_pieces.king,
-            self.get_raw_attacked_squares(&attacked_squares_perspective)
-                .await,
+            king_pieces,
+            self.get_raw_attacked_squares(&attacked_squares_perspective),
         )
     }
 
-    pub async fn move_puts_own_king_in_check(&self, mv: &BitboardMove, piece: ChessPiece) -> bool {
+    // --- REMOVED `async` and `.await` ---
+    pub fn move_puts_own_king_in_check(&self, mv: &BitboardMove, piece: ChessPiece) -> bool {
         let new = self.make_move(mv, piece);
         new.can_king_be_captured(MoveGenPerspective::WaitingPlayer)
-            .await
     }
 
-    pub async fn legal_continuations(&self) -> MovesMap {
+    // --- REMOVED `async` and `.await` ---
+    pub fn legal_continuations(&self) -> MovesMap {
         if let Some(entry) = CACHE.get(self.hash()) {
             if let Some(result) = entry.legal_continuations.clone() {
-                // println!("    legal cont: key {}", self.hash());
+                // println!("     legal cont: key {}", self.hash());
                 // panic!();
                 return result;
             }
         }
         // println!("Cache Miss!");
-        let possible_moves_map = self.pseudolegal_continuations().await;
+        let possible_moves_map = self.pseudolegal_continuations();
         let mut result = MovesMap::new();
         // For each square, we know if there's a piece in it pseudolegal moves.
         for (from_id, piece_and_moves) in possible_moves_map.iter() {
@@ -553,16 +558,13 @@ impl Position {
             let moves_list = &piece_and_moves.moves;
             let mut legal_moves = Vec::new();
             for mv in moves_list.iter() {
-                if !self
-                    .move_puts_own_king_in_check(
-                        &mv,
-                        ChessPiece {
-                            typpe: typpe,
-                            color: self.player_to_move(),
-                        },
-                    )
-                    .await
-                {
+                if !self.move_puts_own_king_in_check(
+                    &mv,
+                    ChessPiece {
+                        typpe: typpe,
+                        color: self.player_to_move(),
+                    },
+                ) {
                     legal_moves.push(*mv);
                 }
             }
@@ -590,7 +592,8 @@ impl Position {
         result
     }
 
-    pub async fn pseudolegal_continuations(&self) -> MovesMap {
+    // --- REMOVED `async` and `.await` ---
+    pub fn pseudolegal_continuations(&self) -> MovesMap {
         let mut result = MovesMap::new();
 
         // to make this a for, we need to make the MoveGenerator into an enum
@@ -607,8 +610,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
         merge_moves_map(
@@ -617,8 +619,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
         merge_moves_map(
@@ -627,8 +628,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
         merge_moves_map(
@@ -637,8 +637,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
         merge_moves_map(
@@ -647,8 +646,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
         merge_moves_map(
@@ -657,8 +655,7 @@ impl Position {
                 MoveGenOpts {
                     perspective: MoveGenPerspective::MovingPlayer,
                 },
-            )
-            .await,
+            ),
             &mut result,
         );
 

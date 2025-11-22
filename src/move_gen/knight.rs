@@ -85,14 +85,14 @@ fn get_attacking_moves_internal(
 
 pub struct KnightBitboardMoveGenerator {}
 impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
-    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
         };
         compute_raw_knight_attacking_moves_internal(ally_pieces, enemy_pieces)
     }
-    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -100,7 +100,7 @@ impl BitboardMoveGenerator for KnightBitboardMoveGenerator {
         get_attacking_moves_internal(ally_pieces, enemy_pieces, opts)
     }
 
-    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
-        Self::get_attacking_moves(pos, opts).await
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+        Self::get_attacking_moves(pos, opts)
     }
 }

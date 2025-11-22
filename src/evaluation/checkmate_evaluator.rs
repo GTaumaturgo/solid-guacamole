@@ -14,21 +14,15 @@ use std::collections::HashMap;
 pub struct CheckmateEvaluator {}
 
 impl CheckmateEvaluator {
-    pub async fn evaluate(&self, position: &Position) -> i32 {
-        if !position.legal_continuations().await.is_empty() {
+    pub fn evaluate(&self, position: &Position) -> i32 {
+        if !position.legal_continuations().is_empty() {
             let moving_player = position.player_to_move();
-            if position
-                .can_king_be_captured(MoveGenPerspective::MovingPlayer)
-                .await
-            {
+            if position.can_king_be_captured(MoveGenPerspective::MovingPlayer) {
                 1000000
             } else {
                 0 // Stalemate.
             }
-        } else if position
-            .can_king_be_captured(MoveGenPerspective::MovingPlayer)
-            .await
-        {
+        } else if position.can_king_be_captured(MoveGenPerspective::MovingPlayer) {
             // Small demotion if king is in check.
             -60
         } else {

@@ -46,11 +46,11 @@ pub struct MoveGenOpts {
 }
 
 pub trait BitboardMoveGenerator {
-    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64;
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64;
 
-    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
 
-    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap;
 }
 
 // Merges two move maps. The second one is borrowed and freed, the first one lives.

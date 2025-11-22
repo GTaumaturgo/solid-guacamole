@@ -219,7 +219,7 @@ impl PieceCoordinateEvaluator {
         result
     }
 
-    pub async fn evaluate(&self, position: &Position) -> i32 {
+    pub fn evaluate(&self, position: &Position) -> i32 {
         let mut score = 0;
 
         let (white, black) = (position.white, position.black);

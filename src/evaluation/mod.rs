@@ -10,7 +10,7 @@ use piece_coordinate_evaluator::PieceCoordinateEvaluator;
 use crate::chess::position::Position;
 
 pub trait PositionEvaluator {
-    async fn evaluate(&self, position: &Position) -> i32;
+    fn evaluate(&self, position: &Position) -> i32;
 }
 pub enum PositionEvaluatorType {
     Material(MaterialEvaluator),
@@ -19,11 +19,11 @@ pub enum PositionEvaluatorType {
 }
 
 impl PositionEvaluatorType {
-    async fn evaluate(&self, position: &Position) -> i32 {
+    fn evaluate(&self, position: &Position) -> i32 {
         match self {
-            PositionEvaluatorType::Material(evaluator) => evaluator.evaluate(position).await,
-            PositionEvaluatorType::PieceCoordinate(evaluator) => evaluator.evaluate(position).await,
-            PositionEvaluatorType::Checkmate(evaluator) => evaluator.evaluate(position).await,
+            PositionEvaluatorType::Material(evaluator) => evaluator.evaluate(position),
+            PositionEvaluatorType::PieceCoordinate(evaluator) => evaluator.evaluate(position),
+            PositionEvaluatorType::Checkmate(evaluator) => evaluator.evaluate(position),
         }
     }
 }
@@ -33,10 +33,10 @@ pub struct PositionEvaluationPipeline {
 }
 
 impl PositionEvaluationPipeline {
-    pub async fn evaluate(&self, position: &Position) -> i32 {
+    pub fn evaluate(&self, position: &Position) -> i32 {
         let mut sum = 0;
         for evaluator in &self.evaluators {
-            sum += (evaluator.evaluate(position)).await;
+            sum += evaluator.evaluate(position);
         }
         sum
     }

@@ -27,9 +27,9 @@ pub async fn handle_position_eval_request(uci_req: &UciRequest) -> UciResponse {
 
     let position = Position::from_uci(uci_req);
 
-    let minimax_evaluator = MinimaxSearchEvaluator::new(eval_pipeline, 4);
+    let minimax_evaluator = MinimaxSearchEvaluator::new(eval_pipeline, 5);
 
-    let score = minimax_evaluator.evaluate(&position).await;
+    let score = minimax_evaluator.evaluate(&position);
     UciResponse {
         best_moves: "".to_string(),
         possible_moves: "".to_string(),

@@ -178,7 +178,7 @@ fn generate_moves_internal(
 }
 
 impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
-    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
@@ -194,7 +194,7 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
         compute_pawn_attacking_moves_internal(ally_pieces, enemy_pieces, p_to_move)
     }
 
-    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
@@ -210,7 +210,7 @@ impl BitboardMoveGenerator for PawnBitboardMoveGenerator {
         get_attacking_moves_internal(ally_pieces, enemy_pieces, p_to_move)
     }
 
-    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),

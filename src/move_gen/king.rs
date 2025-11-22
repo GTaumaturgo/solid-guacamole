@@ -246,7 +246,7 @@ fn generate_moves_internal(
 }
 
 impl BitboardMoveGenerator for KingBitboardMoveGenerator {
-    async fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
+    fn get_raw_attacking_moves(pos: &Position, opts: MoveGenOpts) -> BitB64 {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -254,7 +254,7 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
         compute_raw_king_attacking_moves_internal(ally_pieces, enemy_pieces)
     }
 
-    async fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn get_attacking_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (pos.pieces_to_move(), pos.enemy_pieces()),
             MoveGenPerspective::WaitingPlayer => (pos.enemy_pieces(), pos.pieces_to_move()),
@@ -262,7 +262,7 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
         get_attacking_moves_internal(ally_pieces, enemy_pieces)
     }
 
-    async fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
+    fn generate_moves(pos: &Position, opts: MoveGenOpts) -> MovesMap {
         let (ally_pieces, enemy_pieces, p_to_move) = match opts.perspective {
             MoveGenPerspective::MovingPlayer => (
                 pos.pieces_to_move(),
@@ -280,7 +280,7 @@ impl BitboardMoveGenerator for KingBitboardMoveGenerator {
             enemy_pieces,
             p_to_move,
             &pos.position_info,
-            pos.get_raw_attacked_squares(&opts.perspective).await,
+            pos.get_raw_attacked_squares(&opts.perspective),
         )
     }
 }
